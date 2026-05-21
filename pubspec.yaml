@@ -1,0 +1,58 @@
+name: aliuai_painel
+description: "A new Flutter project."
+
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+  cupertino_icons: ^1.0.8
+  cloud_firestore: ^6.4.1
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  url_launcher: ^6.3.2
+  firebase_storage: ^13.4.1
+  file_picker: ^10.2.0
+  url_strategy: ^0.3.0
+  intl: ^0.20.2
+  google_fonts: ^6.2.1
+  http: ^1.6.0  
+  html_editor_enhanced: ^2.7.1
+  flutter_native_splash: ^2.4.7
+    
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/logo/
+    - assets/logo/logo_aliuai.png
+
+flutter_native_splash:
+  # 1. A cor de fundo da tela inteira (o fundo escuro do Aliuai)
+  color: "#1E1E26"
+  
+  # 2. O caminho para a imagem do seu logo
+  image: assets/logo/logo_aliuai.png
+  
+  # 3. Configurações extras para Android 12+ (Obrigatório para sistemas novos)
+  android_12:
+    image: assets/logo/logo_aliuai.png
+    color: "#1E1E26"
+    
+  # Garante que o splash preencha a tela corretamente em modo tela cheia
+  fullscreen: true
