@@ -1,9 +1,8 @@
+import 'package:aliuai_painel/admin/painel_utilidades_screen.dart';
 import 'package:aliuai_painel/admin_lojas_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import 'admin_login_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -378,8 +377,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     onTap: _abrirModalCadastroUsuario,
                   ),
 
+                // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
+                if (_userRole == 'admin')
+                  ListTile(
+                    leading: const Icon(Icons.location_city, color: Colors.lightBlueAccent),
+                    title: const Text(
+                      'Utilidades Locais',
+                      style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                    ),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PainelUtilidadesPage()));
+                    },
+                  ),
                 const Spacer(),
-
                 const Divider(color: Colors.white12, height: 1),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.redAccent),

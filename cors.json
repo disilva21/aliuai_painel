@@ -6,8 +6,9 @@
         "method": [
             "GET",
             "POST",
-            "PUT",
-            "HEAD"
+            "HEAD",
+            "DELETE",
+            "PUT"
         ],
         "responseHeader": [
             "Content-Type",

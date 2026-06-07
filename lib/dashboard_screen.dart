@@ -1,3 +1,5 @@
+import 'package:aliuai_painel/cadastro_evento_screen.dart';
+import 'package:aliuai_painel/gerenciar_eventos_screen.dart';
 import 'package:aliuai_painel/pedidos_screen.dart';
 import 'package:aliuai_painel/services/plano_service.dart';
 import 'package:flutter/material.dart';
@@ -204,9 +206,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       _buildItemMenu(index: 0, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
                       _buildItemMenu(index: 1, titulo: 'Produtos', icone: Icons.shopping_bag_outlined),
                       _buildItemMenu(index: 2, titulo: 'Promoções', icone: Icons.local_offer_outlined),
-                      _buildItemMenu(index: 3, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
-                      _buildItemMenu(index: 4, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
-                      _buildItemMenu(index: 5, titulo: 'Segurança', icone: Icons.lock_outline),
+                      _buildItemMenu(index: 3, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
+                      _buildItemMenu(index: 4, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
+                      _buildItemMenu(index: 5, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
+                      _buildItemMenu(index: 6, titulo: 'Segurança', icone: Icons.lock_outline),
 
                       Divider(),
                       ListTile(
@@ -232,6 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       PedidosScreen(lojaId: _lojaIdReal!),
                       ProdutosScreen(lojaId: _lojaIdReal!), // Aba 0
                       PromocoesScreen(lojaId: _lojaIdReal!), // Aba 1
+                      GerenciarEventosPage(lojaId: _lojaIdReal!),
                       PerfilStoreScreen(lojaId: _lojaIdReal!), // Aba 2
                       PlanosScreen(lojaId: _lojaIdReal!), // Aba 3
                       const SegurancaScreen(), // Aba 4 (Se não precisar do ID)

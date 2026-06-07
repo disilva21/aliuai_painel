@@ -26,6 +26,10 @@ dependencies:
   http: ^1.6.0  
   html_editor_enhanced: ^2.7.1
   flutter_native_splash: ^2.4.7
+  image_picker: ^1.2.2
+  image_cropper: ^12.2.1
+  cropperx: ^1.1.1
+  pointer_interceptor: ^0.10.1+2
     
 dev_dependencies:
   flutter_test:
