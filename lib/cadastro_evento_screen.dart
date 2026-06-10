@@ -404,7 +404,7 @@ class _CadastroEventoEstabelecimentoPageState extends State<CadastroEventoPage> 
                 child: HtmlEditor(
                   controller: _descricaoController,
                   htmlEditorOptions: HtmlEditorOptions(
-                    hint: "Ex: <b>Festa de anauguração:</b> nesse sábado...",
+                    hint: "Ex: <b>Festa de inauguração:</b> nesse sábado...",
                     initialText: _descricaoInicial, // Injeta o texto do Firestore
                     shouldEnsureVisible: true,
                     autoAdjustHeight: true,

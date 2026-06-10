@@ -73,11 +73,6 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Agora não', style: TextStyle(color: Colors.grey)),
-            ),
-
             // BOTÃO 1: LEVA DIRETO PARA A TELA DE PLANOS DO SEU PAINEL
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -94,7 +89,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                   context,
                 ).showSnackBar(const SnackBar(content: Text('Clique na aba "Planos de Assinatura" no menu lateral para escolher seu novo plano! 😉'), backgroundColor: Colors.blue));
               },
-              child: const Text('Ver Planos'),
+              child: const Text('Fechar'),
             ),
           ],
         );

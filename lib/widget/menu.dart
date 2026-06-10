@@ -30,13 +30,14 @@ class MeusItensDeMenuWidget extends StatelessWidget {
             const SizedBox(height: 32),
 
             // 🔘 Itens de Menu usando o seu construtor customizado
-            buildItemMenu(index: 0, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
-            buildItemMenu(index: 1, titulo: 'Produtos', icone: Icons.shopping_bag_outlined),
-            buildItemMenu(index: 2, titulo: 'Promoções', icone: Icons.local_offer_outlined),
-            buildItemMenu(index: 3, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
-            buildItemMenu(index: 4, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
-            buildItemMenu(index: 5, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
-            buildItemMenu(index: 6, titulo: 'Segurança', icone: Icons.lock_outline),
+            buildItemMenu(index: 0, titulo: 'Dashboard', icone: Icons.delivery_dining_rounded),
+            buildItemMenu(index: 1, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
+            buildItemMenu(index: 2, titulo: 'Produtos', icone: Icons.shopping_bag_outlined),
+            buildItemMenu(index: 3, titulo: 'Promoções', icone: Icons.local_offer_outlined),
+            buildItemMenu(index: 4, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
+            buildItemMenu(index: 5, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
+            buildItemMenu(index: 6, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
+            buildItemMenu(index: 7, titulo: 'Segurança', icone: Icons.lock_outline),
 
             const Divider(color: Colors.white10),
 

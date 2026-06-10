@@ -25,6 +25,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   String? _estadoSelecionado;
   String? _cidadeSelecionadaId;
+
   String? _nomeCidadeSelecionada; // Guarda o nome limpo da cidade (ex: "Porto Firme")
 
   final List<String> _estadosDisponiveis = [
@@ -58,6 +59,28 @@ class _CadastroScreenState extends State<CadastroScreen> {
   ];
 
   List<Map<String, dynamic>> _cidadesDisponiveis = [];
+
+  String gerarSlugEstabelecimento(String texto) {
+    String slug = texto.toLowerCase().trim();
+
+    // Substitui espaços por hífen
+    slug = slug.replaceAll(RegExp(r'\s+'), '-');
+
+    // Remove acentos e caracteres especiais comuns sô!
+    var comAcento = 'àáâãäåçèéêëìíîïñòóôõöùúûüýÿ';
+    var semAcento = 'aaaaaaceeeeiiiinooooouuuuyy';
+    for (int i = 0; i < comAcento.length; i++) {
+      slug = slug.replaceAll(comAcento[i], semAcento[i]);
+    }
+
+    // Remove qualquer caractere que não seja letra, número ou hífen
+    slug = slug.replaceAll(RegExp(r'[^a-z0-9\-]'), '');
+
+    // Remove hífens duplicados se houver
+    slug = slug.replaceAll(RegExp(r'-+'), '-');
+
+    return slug;
+  }
 
   @override
   void dispose() {
@@ -161,16 +184,21 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
       if (uidUsuario != null) {
         // 3. SALVA OS DADOS DO ESTABELECIMENTO PARCEIRO
-        await FirebaseFirestore.instance.collection('estabelecimentos').doc(uidUsuario).set({
+
+        String idAmigavel = gerarSlugEstabelecimento(_nomeLojaController.text);
+
+        await FirebaseFirestore.instance.collection('estabelecimentos').doc(idAmigavel).set({
           'uid': uidUsuario,
           'nome': _nomeLojaController.text.trim(),
           'cidade_id': idCidadeFinal,
           'email': _emailController.text.trim(),
-          'ativo': false,
+          'ativo': true,
           'nota': 5.0,
           'tempo_entrega': '30-45 min',
           'is_delivery': false,
           'limite_promocoes': 0,
+          'plano_atual': 'indefinido',
+          'status_pagamento': 'pendente',
         });
 
         if (mounted) {
@@ -283,7 +311,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // COMBO CIDADE (IBGE)
+                  // Garanta que você tem uma lista de strings simples para as cidades sô!
+                  // Exemplo: List<String> _cidadesDisponiveis = [];
                   _carregandoCidades
                       ? const Center(
                           child: Padding(
@@ -291,30 +320,123 @@ class _CadastroScreenState extends State<CadastroScreen> {
                             child: CircularProgressIndicator(color: Color(0xFFE65100)),
                           ),
                         )
-                      : DropdownButtonFormField<String>(
-                          value: _cidadeSelecionadaId,
-                          disabledHint: const Text('Selecione primeiro o estado'),
-                          decoration: InputDecoration(
-                            labelText: 'Sua Cidade',
-                            prefixIcon: const Icon(Icons.location_on, color: Color(0xFFE65100)),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          items: _estadoSelecionado == null
-                              ? null
-                              : _cidadesDisponiveis.map((cidade) {
-                                  return DropdownMenuItem<String>(value: cidade['id'].toString(), child: Text(cidade['nome'].toString()));
-                                }).toList(),
-                          onChanged: (id) {
-                            if (id != null) {
-                              final itemSelecionado = _cidadesDisponiveis.firstWhere((c) => c['id'] == id);
-                              setState(() {
-                                _cidadeSelecionadaId = id;
-                                _nomeCidadeSelecionada = itemSelecionado['nome']; // Guarda o nome real
-                              });
+                      : Autocomplete<String>(
+                          // Define o valor inicial caso o lojista já tenha uma cidade salva no perfil
+                          initialValue: TextEditingValue(text: _nomeCidadeSelecionada ?? ''),
+
+                          // 🔍 1. Lógica de filtro: o que acontece quando o usuário digita
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text.isEmpty) {
+                              // 🔥 Extrai apenas os nomes em formato String para o Autocomplete ver
+                              return _cidadesDisponiveis.map((cidadeMap) => cidadeMap['nome'].toString());
                             }
+
+                            // Filtra mapeando e transformando em String ao mesmo tempo sô!
+                            return _cidadesDisponiveis.map((cidadeMap) => cidadeMap['nome'].toString()).where((String nomeCidade) {
+                              return nomeCidade.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                            });
                           },
-                          validator: (val) => val == null ? 'Selecione uma cidade.' : null,
+
+                          // 🎯 2. O que acontece quando ele clica na cidade filtrada
+                          onSelected: (String cidade) {
+                            setState(() {
+                              _nomeCidadeSelecionada = cidade;
+                            });
+                          },
+
+                          // 🎨 3. Customização do Campo de Texto onde o usuário digita
+                          fieldViewBuilder: (BuildContext context, TextEditingController textEditingController, FocusNode focusNode, VoidCallback onFieldSubmitted) {
+                            return TextFormField(
+                              controller: textEditingController,
+                              focusNode: focusNode,
+                              decoration: InputDecoration(
+                                labelText: 'Sua Cidade',
+                                prefixIcon: const Icon(Icons.location_city, color: Color(0xFFE65100)),
+                                // Ícone de lupa/seta para indicar que é um campo de busca sô!
+                                suffixIcon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.isEmpty) return 'Digite ou selecione uma cidade.';
+                                if (!_cidadesDisponiveis.contains(val)) return 'Selecione uma cidade válida da lista.';
+                                return null;
+                              },
+                            );
+                          },
+
+                          // 🎹 4. Customização da caixinha suspensa (as opções que aparecem flutuando)
+                          optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                borderRadius: BorderRadius.circular(12),
+                                color: const Color(0xFF1E1E26), // Mantém o fundo escuro oficial do painel!
+                                child: Container(
+                                  width: MediaQuery.of(context).size.width * 0.85, // Ajusta a largura dinamicamente
+                                  constraints: BoxConstraints(maxHeight: 250),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey[800]!),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    shrinkWrap: true,
+                                    itemCount: options.length,
+                                    itemBuilder: (BuildContext context, int index) {
+                                      final String option = options.elementAt(index);
+                                      return InkWell(
+                                        onTap: () => onSelected(option),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                                          child: Text(
+                                            option,
+                                            style: const TextStyle(color: Colors.white, fontSize: 14), // Texto branco no fundo escuro sô
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
+
+                  // COMBO CIDADE (IBGE)
+                  // _carregandoCidades
+                  //     ? const Center(
+                  //         child: Padding(
+                  //           padding: EdgeInsets.all(8.0),
+                  //           child: CircularProgressIndicator(color: Color(0xFFE65100)),
+                  //         ),
+                  //       )
+                  //     :
+
+                  //     DropdownButtonFormField<String>(
+                  //         value: _cidadeSelecionadaId,
+                  //         disabledHint: const Text('Selecione primeiro o estado'),
+                  //         decoration: InputDecoration(
+                  //           labelText: 'Sua Cidade',
+                  //           prefixIcon: const Icon(Icons.location_on, color: Color(0xFFE65100)),
+                  //           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  //         ),
+                  //         items: _estadoSelecionado == null
+                  //             ? null
+                  //             : _cidadesDisponiveis.map((cidade) {
+                  //                 return DropdownMenuItem<String>(value: cidade['id'].toString(), child: Text(cidade['nome'].toString()));
+                  //               }).toList(),
+                  //         onChanged: (id) {
+                  //           if (id != null) {
+                  //             final itemSelecionado = _cidadesDisponiveis.firstWhere((c) => c['id'] == id);
+                  //             setState(() {
+                  //               _cidadeSelecionadaId = id;
+                  //               _nomeCidadeSelecionada = itemSelecionado['nome']; // Guarda o nome real
+                  //             });
+                  //           }
+                  //         },
+                  //         validator: (val) => val == null ? 'Selecione uma cidade.' : null,
+                  //       ),
                   const SizedBox(height: 16),
 
                   // E-MAIL

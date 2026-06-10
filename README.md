@@ -21,3 +21,4 @@ samples, guidance on mobile development, and a full API reference.
 ## Deploy
 flutter build web --release
 firebase deploy --only hosting:painel-aliuai
+firebase deploy --only hosting:aliuai

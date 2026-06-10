@@ -1,5 +1,3 @@
-import 'package:aliuai_painel/dashboard_screen.dart';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'cadastro_produto_modal.dart';
@@ -76,11 +74,6 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Agora não', style: TextStyle(color: Colors.grey)),
-            ),
-
             // BOTÃO 1: LEVA DIRETO PARA A TELA DE PLANOS DO SEU PAINEL
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -97,7 +90,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                   context,
                 ).showSnackBar(const SnackBar(content: Text('Clique na aba "Planos de Assinatura" no menu lateral para escolher seu novo plano! 😉'), backgroundColor: Colors.blue));
               },
-              child: const Text('Ver Planos'),
+              child: const Text('Fechar'),
             ),
           ],
         );
@@ -143,44 +136,74 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Linha de Cabeçalho
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // 📱 Detecta se o espaço disponível é menor que um celular (800px)
+              final bool ehCelular = constraints.maxWidth < 800;
+
+              // 📦 Conteúdo dos Textos (Título + Subtítulo)
+              final Widget blocoTextos = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Gerenciador de Cardápio / Catálogo',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+                    // Reduz um pouco a fonte no celular para não esmagar a tela sô!
+                    style: TextStyle(fontSize: ehCelular ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
-                  SizedBox(height: 4),
-                  Text('Ative ou pause seus itens cadastrados em tempo real.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  const Text('Ative ou pause seus itens cadastrados em tempo real.', style: TextStyle(color: Colors.grey, fontSize: 13)),
                 ],
-              ),
-              // BOTÃO ADICIONAR PRODUTO
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE65100),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
+              );
+
+              // 🔘 Conteúdo do Botão
+              final Widget botaoNovo = SizedBox(
+                // No celular o botão ganha largura total (infinity); no PC ele fica do tamanho natural
+                width: ehCelular ? double.infinity : null,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE65100),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('Novo Produto', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    if (_produtosCadastrados >= _limiteProdutos) {
+                      _mostrarAlertaLimiteExcedido();
+                      return;
+                    }
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => CadastroProdutoModal(lojaId: widget.lojaId!),
+                    );
+                  },
                 ),
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Novo Produto', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  if (_produtosCadastrados >= _limiteProdutos) {
-                    _mostrarAlertaLimiteExcedido();
-                    return;
-                  }
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => CadastroProdutoModal(lojaId: widget.lojaId!),
-                  );
-                },
-              ),
-            ],
+              );
+
+              // 🔀 A MÁGICA: Se for celular, renderiza um embaixo do outro. Se for PC, joga lado a lado!
+              if (ehCelular) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    blocoTextos,
+                    const SizedBox(height: 16), // Espaço entre o título e o botão
+                    botaoNovo,
+                  ],
+                );
+              } else {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: blocoTextos), // O Expanded impede o texto longo de empurrar o botão pra fora do PC
+                    const SizedBox(width: 16),
+                    botaoNovo,
+                  ],
+                );
+              }
+            },
           ),
           const SizedBox(height: 32),
 

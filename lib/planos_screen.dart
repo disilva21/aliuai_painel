@@ -1,4 +1,3 @@
-import 'package:aliuai_painel/admin/pagamento_screen.dart';
 import 'package:aliuai_painel/services/plano_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,7 +15,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
   final _firestore = FirebaseFirestore.instance;
   bool _carregando = true;
   bool _processandoUpgrade = false;
-  String _planoAtual = 'inicial';
+  String _planoAtual = 'indefinido';
   String? _nomeEstabelecimento;
 
   @override
@@ -63,10 +62,10 @@ class _PlanosScreenState extends State<PlanosScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
-          children: [
-            const Icon(Icons.rocket_launch, color: Color(0xFFE65100)),
-            const SizedBox(width: 12),
-            Text('Mudar para o $nomePlano'),
+          children: const [
+            Icon(Icons.rocket_launch, color: Color(0xFFE65100)),
+            SizedBox(width: 12),
+            Text('Mudar de Plano'),
           ],
         ),
         content: Text(
@@ -123,20 +122,27 @@ class _PlanosScreenState extends State<PlanosScreen> {
       );
     }
 
+    // 🖥️ Captura o tamanho da tela para aplicar a responsividade cirúrgica sô!
+    final double larguraTela = MediaQuery.of(context).size.width;
+    final bool ehCelular = larguraTela < 950; // Aumentamos um tiquinho o limite para dar segurança nos monitores menores
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(40.0),
+        padding: EdgeInsets.all(ehCelular ? 16.0 : 40.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '🚀 Planos de Assinatura',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: TextStyle(fontSize: ehCelular ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
             const SizedBox(height: 4),
-            const Text('Escolha o plano ideal para o tamanho e a necessidade do seu estabelecimento.', style: TextStyle(color: Colors.grey, fontSize: 14)),
-            const SizedBox(height: 40),
+            Text(
+              'Escolha o plano ideal para o tamanho e a necessidade do seu estabelecimento.',
+              style: TextStyle(color: Colors.grey, fontSize: ehCelular ? 13 : 14),
+            ),
+            SizedBox(height: ehCelular ? 24 : 40),
 
             if (_planoAtual == 'indefinido')
               Container(
@@ -147,7 +153,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                   children: const [
                     Expanded(
                       child: Text(
-                        '🚀  Voce ainda não possui um plano ativo. Por favor, escolha um plano para ativar sua loja no aplicativo.',
+                        '🚀  Você ainda não possui um plano ativo. Por favor, escolha um plano para ativar sua loja no aplicativo.',
                         style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -155,12 +161,11 @@ class _PlanosScreenState extends State<PlanosScreen> {
                 ),
               ),
 
-            // 📡 STREAMBUILDER CONECTADO NA SUA NOVA COLEÇÃO 'PLANOS'
+            // 📡 STREAMBUILDER CONECTADO NA SUA COLEÇÃO 'PLANOS'
             StreamBuilder<QuerySnapshot>(
               stream: _firestore.collection('planos').where('ativo', isEqualTo: true).orderBy('ordem').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  print(snapshot.error);
                   return Center(child: Text('Erro ao carregar planos do banco: ${snapshot.error}'));
                 }
 
@@ -174,40 +179,31 @@ class _PlanosScreenState extends State<PlanosScreen> {
 
                 final planosDocs = snapshot.data!.docs;
 
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // 🔥 A MÁGICA DA RESPONSIVIDADE SEM QUEBRA DE LINHA:
+                // Se for celular, renderiza os cards um embaixo do outro normais sô.
+                // Se for computador, força o GridView a dividir a linha exatamente em 3 colunas iguais!
+                if (!ehCelular) {
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3, // Força exatamente 3 cards lado a lado sô!
+                      crossAxisSpacing: 20.0, // Espaço horizontal perfeito entre eles
+                      mainAxisSpacing: 20.0, // Espaço vertical caso houvesse mais linhas
+                      childAspectRatio: 0.62, // Controla a proporção (largura x altura) do card para não amassar o texto
+                    ),
+                    itemCount: planosDocs.length,
+                    itemBuilder: (context, index) {
+                      final doc = planosDocs[index];
+                      return _montarCardDoDoc(doc, ehCelular);
+                    },
+                  );
+                }
+
+                // Layout de fallback para celulares (Lista Vertical limpa)
+                return Column(
                   children: planosDocs.map((doc) {
-                    final planoId = doc.id; // ex: 'inicial', 'intermediario', 'master'
-                    final dadosPlano = doc.data() as Map<String, dynamic>;
-
-                    // Puxa as informações dinâmicas do documento
-                    final String titulo = dadosPlano['nome'] ?? 'Plano';
-                    final double valorReal = (dadosPlano['valor'] ?? 0.0).toDouble();
-                    final String precoFormatado = valorReal.toStringAsFixed(2).replaceAll('.', ',');
-
-                    final int limiteProd = dadosPlano['limite_produtos'] ?? 0;
-                    final int limitePromo = dadosPlano['limite_promocoes'] ?? 0;
-                    final bool recomendar = dadosPlano['recomendar'] ?? false;
-
-                    // Converte o Array de benefícios cadastrado no Firebase
-                    final List<dynamic> recursosCarregados = dadosPlano['beneficios'] ?? [];
-                    final List<String> recursos = recursosCarregados.map((e) => e.toString()).toList();
-
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0), // Mantém o espaçamento entre cards
-                        child: _buildCardPlano(
-                          titulo: titulo,
-                          preco: precoFormatado,
-                          idPlano: planoId,
-                          corDestaque: _obterCorDestaque(planoId),
-                          recomendar: recomendar,
-                          recursos: recursos,
-                          descricao: dadosPlano['descricao'] ?? '',
-                          onEscolher: () => _confirmarMudancaPlano(titulo, planoId, valorReal, limiteProd, limitePromo),
-                        ),
-                      ),
-                    );
+                    return Padding(padding: const EdgeInsets.only(bottom: 20.0), child: _montarCardDoDoc(doc, ehCelular));
                   }).toList(),
                 );
               },
@@ -215,6 +211,35 @@ class _PlanosScreenState extends State<PlanosScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// ⚙️ Função auxiliar isolada para extrair os dados do documento do Firebase e montar o card
+  Widget _montarCardDoDoc(DocumentSnapshot doc, bool ehCelular) {
+    final planoId = doc.id;
+    final dadosPlano = doc.data() as Map<String, dynamic>;
+
+    final String titulo = dadosPlano['nome'] ?? 'Plano';
+    final double valorReal = (dadosPlano['valor'] ?? 0.0).toDouble();
+    final String precoFormatado = valorReal.toStringAsFixed(2).replaceAll('.', ',');
+
+    final int limiteProd = dadosPlano['limite_produtos'] ?? 0;
+    final int limitePromo = dadosPlano['limite_promocoes'] ?? 0;
+    final bool recomendar = dadosPlano['recomendar'] ?? false;
+
+    final List<dynamic> recursosCarregados = dadosPlano['beneficios'] ?? [];
+    final List<String> recursos = recursosCarregados.map((e) => e.toString()).toList();
+
+    return _buildCardPlano(
+      titulo: titulo,
+      preco: precoFormatado,
+      idPlano: planoId,
+      corDestaque: _obterCorDestaque(planoId),
+      recomendar: recomendar,
+      recursos: recursos,
+      descricao: dadosPlano['descricao'] ?? '',
+      ehCelular: ehCelular,
+      onEscolher: () => _confirmarMudancaPlano(titulo, planoId, valorReal, limiteProd, limitePromo),
     );
   }
 
@@ -226,6 +251,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
     required List<String> recursos,
     required VoidCallback onEscolher,
     required String descricao,
+    required bool ehCelular,
     bool recomendar = false,
   }) {
     bool isPlanoAtual = _planoAtual == idPlano;
@@ -234,89 +260,101 @@ class _PlanosScreenState extends State<PlanosScreen> {
       children: [
         Card(
           elevation: recomendar ? 4 : 0,
+          margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-
             side: BorderSide(color: isPlanoAtual ? corDestaque : (recomendar ? corDestaque.withOpacity(0.5) : Colors.grey[300]!), width: isPlanoAtual ? 3 : 1),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            key: ValueKey(idPlano), // Ajuda o Flutter a renderizar a árvore sem perder o foco
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isPlanoAtual)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                    child: Text(
-                      'Seu Plano Ativo ✔',
-                      style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                // 🚀 ADICIONE ESTE BLOCO AQUI EMBAIXO DO TÍTULO:
-                if (descricao.isNotEmpty) ...[const SizedBox(height: 4), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    const Text('R\$ ', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    Text(preco, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold)),
-                    const Text(' /mês', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 24),
-
-                Column(
-                  children: recursos.map((rec) {
-                    bool esgotado = rec.contains('Sem');
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6.0),
-                      child: Row(
-                        children: [
-                          Icon(esgotado ? Icons.cancel_outlined : Icons.check_circle_outline_rounded, color: esgotado ? Colors.red[300] : Colors.green[600], size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              rec,
-                              style: TextStyle(fontSize: 14, color: esgotado ? Colors.grey : Colors.black87, decoration: esgotado ? TextDecoration.lineThrough : null),
-                            ),
-                          ),
-                        ],
+            padding: const EdgeInsets.all(20.0),
+            key: ValueKey(idPlano),
+            // 🔥 Para o Spacer funcionar e empurrar o botão, a Column precisa ocupar a altura total interna do Card
+            child: SizedBox(
+              height: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isPlanoAtual)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                      child: Text(
+                        'Seu Plano Ativo ✔',
+                        style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 40),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: isPlanoAtual ? Colors.grey[100] : (recomendar ? corDestaque : Colors.transparent),
-                      side: BorderSide(color: isPlanoAtual ? Colors.grey[300]! : corDestaque),
-                      foregroundColor: isPlanoAtual ? Colors.grey[600] : (recomendar ? Colors.white : corDestaque),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    onPressed: isPlanoAtual ? null : onEscolher, // Dispara a função de escolher
-                    child: Text(
-                      isPlanoAtual
-                          ? 'Plano Atual'
-                          : _planoAtual == 'indefinido'
-                          ? 'Escolher Plano'
-                          : 'Migrar de Plano',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  if (descricao.isNotEmpty) ...[const SizedBox(height: 6), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      const Text('R\$ ', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text(
+                        preco,
+                        style: TextStyle(fontSize: ehCelular ? 32 : 40, fontWeight: FontWeight.bold),
+                      ),
+                      const Text(' /mês', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Lista de recursos
+                  Column(
+                    children: recursos.map((rec) {
+                      bool esgotado = rec.contains('Sem');
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(esgotado ? Icons.cancel_outlined : Icons.check_circle_outline_rounded, color: esgotado ? Colors.red[300] : Colors.green[600], size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                rec,
+                                style: TextStyle(fontSize: 13, color: esgotado ? Colors.grey : Colors.black87, decoration: esgotado ? TextDecoration.lineThrough : null),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  // 🔥 A MÁGICA ESTÁ AQUI SÔ!
+                  // O Spacer calcula dinamicamente quanto espaço sobrou na Column de cada card
+                  // e empurra o botão lá para o final de forma simétrica nos 3 cards!
+                  if (!ehCelular) const Spacer(),
+                  if (ehCelular) const SizedBox(height: 32), // No celular um espaçamento simples basta
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: isPlanoAtual ? Colors.grey[100] : (recomendar ? corDestaque : Colors.transparent),
+                        side: BorderSide(color: isPlanoAtual ? Colors.grey[300]! : corDestaque),
+                        foregroundColor: isPlanoAtual ? Colors.grey[600] : (recomendar ? Colors.white : corDestaque),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: isPlanoAtual ? null : onEscolher,
+                      child: Text(
+                        isPlanoAtual
+                            ? 'Plano Atual'
+                            : _planoAtual == 'indefinido'
+                            ? 'Escolher Plano'
+                            : 'Migrar de Plano',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -14,7 +14,17 @@ class GerenciarEventosPage extends StatefulWidget {
 }
 
 class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
+  final _firestore = FirebaseFirestore.instance;
+  bool _carregando = true;
+  String _planoAtual = 'indefinido';
+  String? _nomeEstabelecimento;
   // Função rápida para alternar o status do evento direto da lista (Ativar/Inativar)
+  @override
+  void initState() {
+    _buscarPlanoAtual();
+    super.initState();
+  }
+
   Future<void> _alternarStatusEvento(String eventoId, bool statusAtual) async {
     try {
       await FirebaseFirestore.instance.collection('eventos').doc(eventoId).update({'status': statusAtual});
@@ -27,6 +37,72 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao mudar status: $e'), backgroundColor: Colors.red));
       }
     }
+  }
+
+  void _mostrarAlertaPagamento() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.rocket_launch_rounded, color: Colors.amber[800], size: 28),
+              const SizedBox(width: 12),
+              const Text('Escolha seu plano! 🚀', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Para cadastrar eventos você precisa contratar um dos nossos planos.', style: const TextStyle(fontSize: 14, color: Colors.black87)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.workspace_premium, color: Colors.orange),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Faça contratação de um plano agora mesmo!',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFE65100)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // BOTÃO 1: LEVA DIRETO PARA A TELA DE PLANOS DO SEU PAINEL
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE65100),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.pop(context); // Fecha a modal
+
+                // MUDANÇA DE ABA: Se a sua DashboardScreen gerencia as abas,
+                // você pode disparar um callback ou avisar o lojista para ir até lá.
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Clique na aba "Planos de Assinatura" no menu lateral para escolher seu novo plano! 😉'), backgroundColor: Colors.blue));
+              },
+              child: const Text('Fechar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -55,42 +131,44 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
               ),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Novo Evento sô!', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () {
-                // 🟢 Abre a tela para CADASTRAR um novo evento usando a mesma modal lateral
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) {
-                    return FractionallySizedBox(
-                      widthFactor: 0.8,
-                      heightFactor: 0.95,
-                      alignment: Alignment.centerRight, // Cola no lado direito
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), bottomLeft: Radius.circular(24)),
-                        child: Scaffold(
-                          appBar: AppBar(
-                            backgroundColor: const Color(0xFFF5F5F5),
-                            elevation: 0,
-                            leading: IconButton(
-                              icon: const Icon(Icons.close_rounded, color: Color(0xFF2D2D3A)),
-                              onPressed: () => Navigator.pop(context),
+              onPressed: _planoAtual == 'indefinido'
+                  ? _mostrarAlertaPagamento
+                  : () {
+                      // 🟢 Abre a tela para CADASTRAR um novo evento usando a mesma modal lateral
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) {
+                          return FractionallySizedBox(
+                            widthFactor: 0.8,
+                            heightFactor: 0.95,
+                            alignment: Alignment.centerRight, // Cola no lado direito
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), bottomLeft: Radius.circular(24)),
+                              child: Scaffold(
+                                appBar: AppBar(
+                                  backgroundColor: const Color(0xFFF5F5F5),
+                                  elevation: 0,
+                                  leading: IconButton(
+                                    icon: const Icon(Icons.close_rounded, color: Color(0xFF2D2D3A)),
+                                    onPressed: () => Navigator.pop(context),
+                                  ),
+                                  title: const Text(
+                                    'Novo Evento sô!', // Título fixo de cadastro
+                                    style: TextStyle(color: Color(0xFF2D2D3A), fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                body: CadastroEventoPage(
+                                  lojaId: widget.lojaId,
+                                  eventoId: null, // 🔴 ATENÇÃO: Passando null aqui força o modo CADASTRO limpo!
+                                ),
+                              ),
                             ),
-                            title: const Text(
-                              'Novo Evento sô!', // Título fixo de cadastro
-                              style: TextStyle(color: Color(0xFF2D2D3A), fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          body: CadastroEventoPage(
-                            lojaId: widget.lojaId,
-                            eventoId: null, // 🔴 ATENÇÃO: Passando null aqui força o modo CADASTRO limpo!
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+                          );
+                        },
+                      );
+                    },
             ),
           ),
         ],
@@ -249,45 +327,47 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
                                 ),
                                 icon: const Icon(Icons.edit, size: 14),
                                 label: const Text('Editar', style: TextStyle(fontSize: 13)),
-                                onPressed: () {
-                                  // 🔴 Abre a tela de cadastro/edição deslizando pela lateral ou cobrindo apenas a área do conteúdo
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true, // Permite que a tela ocupe a altura necessária
-                                    backgroundColor: Colors.transparent, // Deixa o fundo invisível para usarmos o design da página
-                                    builder: (context) {
-                                      // Usamos um FractionallySizedBox para fazer ela ocupar 80% da largura da tela na Web,
-                                      // deixando o menu lateral esquerdo visível!
-                                      return FractionallySizedBox(
-                                        widthFactor: 0.8,
-                                        heightFactor: 0.95, // Ocupa quase toda a altura, deixando uma bordinha charmosa
-                                        alignment: Alignment.centerRight, // Cola o modal no lado direito da tela
-                                        child: ClipRRect(
-                                          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), bottomLeft: Radius.circular(24)),
-                                          child: Scaffold(
-                                            // Envolvemos num Scaffold próprio para criar uma barra de fechar elegante
-                                            appBar: AppBar(
-                                              backgroundColor: const Color(0xFFF5F5F5),
-                                              elevation: 0,
-                                              leading: IconButton(
-                                                icon: const Icon(Icons.close_rounded, color: Color(0xFF2D2D3A)),
-                                                onPressed: () => Navigator.pop(context), // Botão de fechar o modal
+                                onPressed: _planoAtual == 'indefinido'
+                                    ? _mostrarAlertaPagamento
+                                    : () {
+                                        // 🔴 Abre a tela de cadastro/edição deslizando pela lateral ou cobrindo apenas a área do conteúdo
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true, // Permite que a tela ocupe a altura necessária
+                                          backgroundColor: Colors.transparent, // Deixa o fundo invisível para usarmos o design da página
+                                          builder: (context) {
+                                            // Usamos um FractionallySizedBox para fazer ela ocupar 80% da largura da tela na Web,
+                                            // deixando o menu lateral esquerdo visível!
+                                            return FractionallySizedBox(
+                                              widthFactor: 0.8,
+                                              heightFactor: 0.95, // Ocupa quase toda a altura, deixando uma bordinha charmosa
+                                              alignment: Alignment.centerRight, // Cola o modal no lado direito da tela
+                                              child: ClipRRect(
+                                                borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), bottomLeft: Radius.circular(24)),
+                                                child: Scaffold(
+                                                  // Envolvemos num Scaffold próprio para criar uma barra de fechar elegante
+                                                  appBar: AppBar(
+                                                    backgroundColor: const Color(0xFFF5F5F5),
+                                                    elevation: 0,
+                                                    leading: IconButton(
+                                                      icon: const Icon(Icons.close_rounded, color: Color(0xFF2D2D3A)),
+                                                      onPressed: () => Navigator.pop(context), // Botão de fechar o modal
+                                                    ),
+                                                    title: Text(
+                                                      'Novo Evento sô!',
+                                                      style: const TextStyle(color: Color(0xFF2D2D3A), fontSize: 16, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                  body: CadastroEventoPage(
+                                                    lojaId: widget.lojaId,
+                                                    eventoId: id, // Passa o ID do evento selecionado
+                                                  ),
+                                                ),
                                               ),
-                                              title: Text(
-                                                'Novo Evento sô!',
-                                                style: const TextStyle(color: Color(0xFF2D2D3A), fontSize: 16, fontWeight: FontWeight.bold),
-                                              ),
-                                            ),
-                                            body: CadastroEventoPage(
-                                              lojaId: widget.lojaId,
-                                              eventoId: id, // Passa o ID do evento selecionado
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
+                                            );
+                                          },
+                                        );
+                                      },
                               ),
                             ],
                           ),
@@ -302,5 +382,23 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
         },
       ),
     );
+  }
+
+  /// Puxa o plano que está salvo atualmente no banco
+  Future<void> _buscarPlanoAtual() async {
+    try {
+      final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
+
+      if (docLoja.exists && mounted) {
+        setState(() {
+          _planoAtual = docLoja.data()?['plano_atual'] ?? 'indefinido';
+          _carregando = false;
+          _nomeEstabelecimento = docLoja.data()?['nome'] ?? 'Estabelecimento';
+        });
+      }
+    } catch (e) {
+      print('Erro ao buscar plano atual: $e');
+      if (mounted) setState(() => _carregando = false);
+    }
   }
 }

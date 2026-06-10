@@ -80,7 +80,6 @@ class _SegurancaScreenState extends State<SegurancaScreen> {
 
       if (usuario != null) {
         // O Firebase exige que o usuário tenha logado recentemente para mudar a senha.
-        // Se ele já estava logado há muito tempo, o método pede reautenticação.
         await usuario.updatePassword(_novaSenhaController.text.trim());
 
         _senhaAtualController.clear();
@@ -104,124 +103,140 @@ class _SegurancaScreenState extends State<SegurancaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🖥️ Verifica a largura para saber se renderiza em modo celular
+    final bool ehCelular = MediaQuery.of(context).size.width < 800;
+
+    // 📦 Bloco 1: Formulário de E-mail isolado para reaproveitamento
+    final Widget cardEmail = Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formEmailKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('E-mail de Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              TextFormField(
+                enabled: false, // Atualmente travado conforme seu padrão original sô!
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'E-mail de Acesso',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                validator: (val) => val!.isEmpty ? 'Digite um e-mail válido.' : null,
+              ),
+              const SizedBox(height: 24),
+              // Descomente abaixo caso queira reativar o botão de salvar e-mail futuramente
+              // SizedBox(
+              //   width: ehCelular ? double.infinity : null,
+              //   child: ElevatedButton(
+              //     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100), foregroundColor: Colors.white),
+              //     onPressed: _carregando ? null : _atualizarEmail,
+              //     child: _carregando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Salvar Novo E-mail'),
+              //   ),
+              // ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // 📦 Bloco 2: Formulário de Senha isolado
+    final Widget cardSenha = Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formSenhaKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Alterar Senha de Acesso', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _novaSenhaController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Nova Senha',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                validator: (val) => val!.length < 6 ? 'A senha deve ter no mínimo 6 caracteres.' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmarSenhaController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Confirmar Nova Senha',
+                  prefixIcon: const Icon(Icons.lock_reset_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                validator: (val) {
+                  if (val != _novaSenhaController.text) {
+                    return 'As senhas não coincidem, sô!';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                // Botão expande no celular para ficar confortável de tocar
+                width: ehCelular ? double.infinity : null,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white, padding: ehCelular ? const EdgeInsets.symmetric(vertical: 16) : null),
+                  onPressed: _carregando ? null : _atualizarSenha,
+                  child: _carregando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Modificar Senha'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(40.0),
+          // Reduz o padding geral no celular para as caixas aproveitarem as bordas físicas da tela
+          padding: EdgeInsets.all(ehCelular ? 16.0 : 40.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '🔑 Dados de Acesso & Segurança',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(fontSize: ehCelular ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               const SizedBox(height: 4),
-              const Text('Gerencie o e-mail de login e a senha de segurança do seu painel administrativo.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Gerencie o e-mail de login e a senha de segurança do seu painel administrativo.', style: TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 32),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // BLOCO 1: ALTERAR E-MAIL
-                  Expanded(
-                    child: Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[200]!),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Form(
-                          key: _formEmailKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('E-mail de Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                enabled: false,
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  labelText: 'E-mail de Acesso',
-                                  prefixIcon: const Icon(Icons.email_outlined),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                validator: (val) => val!.isEmpty ? 'Digite um e-mail válido.' : null,
-                              ),
-                              const SizedBox(height: 24),
-                              // ElevatedButton(
-                              //   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100), foregroundColor: Colors.white),
-                              //   onPressed: _carregando ? null : _atualizarEmail,
-                              //   child: const Text('Salvar Novo E-mail'),
-                              // ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-
-                  // BLOCO 2: ALTERAR SENHA
-                  Expanded(
-                    child: Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[200]!),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Form(
-                          key: _formSenhaKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Alterar Senha de Acesso', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _novaSenhaController,
-                                obscureText: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Nova Senha',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                validator: (val) => val!.length < 6 ? 'A senha deve ter no mínimo 6 caracteres.' : null,
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _confirmarSenhaController,
-                                obscureText: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Confirmar Nova Senha',
-                                  prefixIcon: const Icon(Icons.lock_reset_outlined),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                validator: (val) {
-                                  if (val != _novaSenhaController.text) {
-                                    return 'As senhas não coincidem, sô!';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.black87, foregroundColor: Colors.white),
-                                onPressed: _carregando ? null : _atualizarSenha,
-                                child: const Text('Modificar Senha'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // 🔀 A MÁGICA DA RESPONSIVIDADE:
+              // Se for celular, renderiza uma Column (empilhado). Se for PC, renderiza uma Row (lado a lado).
+              if (ehCelular)
+                Column(children: [cardEmail, const SizedBox(height: 16), cardSenha])
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: cardEmail),
+                    const SizedBox(width: 24),
+                    Expanded(child: cardSenha),
+                  ],
+                ),
             ],
           ),
         ),

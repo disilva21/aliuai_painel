@@ -52,7 +52,12 @@ class PedidosScreen extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Nenhum pedido recebido ainda. Quando chegar, vai aparecer aqui! 🏪'));
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 30),
+                child: Text('Nenhum pedido recebido ainda. Quando chegar, vai aparecer aqui! 🏪', textAlign: TextAlign.center),
+              ),
+            );
           }
 
           final pedidosDocs = snapshot.data!.docs;

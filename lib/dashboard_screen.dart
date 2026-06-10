@@ -1,12 +1,13 @@
-import 'package:aliuai_painel/cadastro_evento_screen.dart';
 import 'package:aliuai_painel/gerenciar_eventos_screen.dart';
+import 'package:aliuai_painel/metrica_screen.dart';
+import 'package:aliuai_painel/onboarding_dialog.dart';
 import 'package:aliuai_painel/pedidos_screen.dart';
-import 'package:aliuai_painel/services/plano_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Importações das suas telas filhas (ajuste os caminhos conforme seu projeto)
+// Importações das suas telas filhas
 import 'produtos_screen.dart';
 import 'promocoes_screen.dart';
 import 'perfil_store_screen.dart';
@@ -33,8 +34,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-
     _inicializarPainel();
+
+    _verificarPrimeiroAcesso();
+  }
+
+  Future<void> _verificarPrimeiroAcesso() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Se for nulo ou verdadeiro, significa que é a primeira vez dele sô!
+    final bool primeiroAcesso = prefs.getBool('primeiro_acesso_painel') ?? true;
+
+    if (primeiroAcesso && mounted) {
+      // Abre a nossa introdução estilizada
+      OnboardingDialog.mostrar(context);
+
+      // Salva no navegador que ele já viu, para nunca mais incomodar o lojista
+      await prefs.setBool('primeiro_acesso_painel', true);
+    }
   }
 
   /// 🔥 Fonte Única da Verdade: Busca os dados uma única vez e distribui
@@ -62,11 +79,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _mostrarBannerPeriodoDeGraca = false;
           _diasRestantesParaVencer = 999;
         }
+        // REGRA 1.2: Se for PERIODO TESTE, esconde o banner permanentemente
+        if (_statusPagamentoGeral == 'teste') {
+          _mostrarBannerPeriodoDeGraca = false;
+          _diasRestantesParaVencer = 7;
+        }
         // REGRA 2: Se for PENDENTE (Novo cadastro feito pelo Admin ou Dono)
         else if (_statusPagamentoGeral == 'pendente') {
           _mostrarBannerPeriodoDeGraca = true;
           _diasRestantesParaVencer = 0;
-          _abaSelecionada = 3; // Opcional: Redireciona para aba Perfil para o lojista ver os dados
+          _abaSelecionada = 6; // Redireciona para a aba correta baseada no seu mapa original
         }
         // REGRA 3: Se for EM_DIA ou ATRASADO, calcula com base na data de vencimento
         else {
@@ -101,7 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  /// Método simulado para abrir o fluxo de pagamento
+  /// Método para abrir o fluxo de pagamento
   void _abrirModalPagamentoPix() {
     showDialog(
       context: context,
@@ -119,15 +141,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
             onPressed: () {
               Navigator.pop(context); // Fecha o modal
-
-              _abaSelecionada = 4;
-              setState(() {});
+              setState(() {
+                _abaSelecionada = 5; // Ajustado dinamicamente para mirar o index correto da PlanosScreen
+              });
             },
             child: const Text('Visitar Agora', style: TextStyle(color: Colors.white)),
           ),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar')),
         ],
       ),
+    );
+  }
+
+  /// Construtor auxiliar de itens do menu lateral (Ajustado para Responsividade 📱)
+  Widget _buildItemMenu({required int index, required String titulo, required IconData icone}) {
+    final bool selecionado = _abaSelecionada == index;
+    final bool ehCelular = MediaQuery.of(context).size.width < 800;
+
+    return ListTile(
+      selected: selecionado,
+      selectedTileColor: Colors.white.withOpacity(0.05),
+      leading: Icon(icone, color: selecionado ? const Color(0xFFE65100) : Colors.grey),
+      title: Text(
+        titulo,
+        style: TextStyle(color: selecionado ? Colors.white : Colors.grey, fontWeight: selecionado ? FontWeight.bold : FontWeight.normal),
+      ),
+      onTap: () {
+        setState(() {
+          _abaSelecionada = index;
+        });
+
+        // 🍔 SE FOR CELULAR: Fecha o menu hambúrguer suavemente após o clique sô!
+        if (ehCelular) {
+          Navigator.pop(context);
+        }
+      },
     );
   }
 
@@ -139,22 +187,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final bool ehCelular = MediaQuery.of(context).size.width < 800;
+
     // Gatilhos para estilização do Banner de aviso
     bool contaBloqueadaOuAtrasada = _statusPagamentoGeral == 'atrasado' || (_statusPagamentoGeral != 'isento' && _diasRestantesParaVencer < 0);
     bool contaNovaPendente = _statusPagamentoGeral == 'pendente';
 
+    // 📦 COMPONENTE DE MENU UNIFICADO (Roda idêntico no Drawer e na Sidebar do PC)
+    Widget construirMenuCompleto() {
+      return Container(
+        width: 250,
+        color: const Color(0xFF1E1E26),
+        child: ListView(
+          children: [
+            const SizedBox(height: 24),
+            const Center(
+              child: Text(
+                'Painel aliuai',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 32),
+            _buildItemMenu(index: 0, titulo: 'Dashboard', icone: Icons.delivery_dining_rounded),
+            lineDivider(),
+            _buildItemMenu(index: 1, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
+            lineDivider(),
+            _buildItemMenu(index: 2, titulo: 'Produtos', icone: Icons.shopping_bag_outlined),
+            lineDivider(),
+            _buildItemMenu(index: 3, titulo: 'Promoções', icone: Icons.local_offer_outlined),
+            lineDivider(),
+            _buildItemMenu(index: 4, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
+            lineDivider(),
+            _buildItemMenu(index: 5, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
+            lineDivider(),
+            _buildItemMenu(index: 6, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
+            lineDivider(),
+            _buildItemMenu(index: 7, titulo: 'Segurança', icone: Icons.lock_outline),
+            lineDivider(),
+
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Sair da Conta', style: TextStyle(color: Colors.red)),
+              onTap: () async {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  if (ehCelular) Navigator.pop(context); // Evita travamento de foco do Drawer
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                }
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+
+      // 🍔 SE FOR CELULAR: Habilita o Drawer com o botão hambúrguer automático na AppBar
+      drawer: ehCelular ? Drawer(child: construirMenuCompleto()) : null,
+
+      // 📐 Barra superior necessária para navegação mobile confortável
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1E1E26),
+        elevation: 0,
+        // title: const Text(
+        //   'aliuai Admin',
+        //   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        // ),
+        centerTitle: ehCelular,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Column(
         children: [
-          // ⚠️ BANNER DE COBRANÇA INTELIGENTE (Nunca exibe se for 'isento')
+          // ⚠️ BANNER DE COBRANÇA INTELIGENTE
           if (_statusPagamentoGeral != 'isento' && _mostrarBannerPeriodoDeGraca)
             InkWell(
               onTap: _abrirModalPagamentoPix,
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                // Vermelho para bloqueados/atrasados. Laranja para avisos ou novos pendentes.
                 color: contaBloqueadaOuAtrasada ? Colors.red[700] : Colors.orange[700],
                 child: Row(
                   children: [
@@ -191,55 +304,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: Row(
               children: [
-                // 🧭 MENU LATERAL (SIDEBAR DE EXEMPLO - MANTENHA A SUA ESTRUTURA ATUAL)
-                Container(
-                  width: 250,
-                  color: const Color(0xFF1E1E26),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-                      const Text(
-                        'aliuai Admin',
-                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 32),
-                      _buildItemMenu(index: 0, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
-                      _buildItemMenu(index: 1, titulo: 'Produtos', icone: Icons.shopping_bag_outlined),
-                      _buildItemMenu(index: 2, titulo: 'Promoções', icone: Icons.local_offer_outlined),
-                      _buildItemMenu(index: 3, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
-                      _buildItemMenu(index: 4, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
-                      _buildItemMenu(index: 5, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
-                      _buildItemMenu(index: 6, titulo: 'Segurança', icone: Icons.lock_outline),
-
-                      Divider(),
-                      ListTile(
-                        leading: const Icon(Icons.logout, color: Colors.red),
-                        title: const Text('Sair da Conta', style: TextStyle(color: Colors.red)),
-                        onTap: () async {
-                          await FirebaseAuth.instance.signOut();
-                          if (mounted) {
-                            Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                // 🖥️ SE FOR COMPUTADOR: Renderiza o menu lateral fixo normal
+                if (!ehCelular) construirMenuCompleto(),
 
                 // 🖥️ VISUALIZADOR DE TELAS (INDEXED STACK)
                 Expanded(
-                  child: IndexedStack(
-                    index: _abaSelecionada,
-                    // 🔥 Passa o ID automático da loja já mastigado para todas as sub-telas
-                    children: [
-                      PedidosScreen(lojaId: _lojaIdReal!),
-                      ProdutosScreen(lojaId: _lojaIdReal!), // Aba 0
-                      PromocoesScreen(lojaId: _lojaIdReal!), // Aba 1
-                      GerenciarEventosPage(lojaId: _lojaIdReal!),
-                      PerfilStoreScreen(lojaId: _lojaIdReal!), // Aba 2
-                      PlanosScreen(lojaId: _lojaIdReal!), // Aba 3
-                      const SegurancaScreen(), // Aba 4 (Se não precisar do ID)
-                    ],
+                  child: Container(
+                    padding: EdgeInsets.all(ehCelular ? 8 : 16), // Dá mais tela útil no celular sô!
+                    child: IndexedStack(
+                      index: _abaSelecionada,
+                      children: [
+                        MetricaScreen(lojaId: _lojaIdReal!),
+                        PedidosScreen(lojaId: _lojaIdReal!),
+                        ProdutosScreen(lojaId: _lojaIdReal!),
+                        PromocoesScreen(lojaId: _lojaIdReal!),
+                        GerenciarEventosPage(lojaId: _lojaIdReal!),
+                        PerfilStoreScreen(lojaId: _lojaIdReal!),
+                        PlanosScreen(lojaId: _lojaIdReal!),
+                        const SegurancaScreen(),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -250,22 +334,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Construtor auxiliar de itens do menu lateral
-  Widget _buildItemMenu({required int index, required String titulo, required IconData icone}) {
-    final bool selecionado = _abaSelecionada == index;
-    return ListTile(
-      selected: selecionado,
-      selectedTileColor: Colors.white.withOpacity(0.05),
-      leading: Icon(icone, color: selecionado ? const Color(0xFFE65100) : Colors.grey),
-      title: Text(
-        titulo,
-        style: TextStyle(color: selecionado ? Colors.white : Colors.grey, fontWeight: selecionado ? FontWeight.bold : FontWeight.normal),
-      ),
-      onTap: () {
-        setState(() {
-          _abaSelecionada = index;
-        });
-      },
+  Padding lineDivider() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Divider(color: Colors.white10, height: 1),
     );
   }
 }
