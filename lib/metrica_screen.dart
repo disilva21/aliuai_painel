@@ -29,7 +29,7 @@ class _MetricaScreenState extends State<MetricaScreen> {
   /// 📊 Busca o histórico de HOJE e agrupa por hora para desenhar as linhas do gráfico
   void _escutarHistoricoGrafico() {
     DateTime agora = DateTime.now();
-    DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
+    final inicioDoDia = DateTime(agora.year, agora.month, agora.day, 0, 0, 0);
 
     _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('historico_metricas').where('criado_em', isGreaterThanOrEqualTo: inicioDoDia).snapshots().listen((snapshot) {
       Map<int, int> temporarioAcessos = {8: 0, 10: 0, 12: 0, 14: 0, 16: 0, 18: 0};
@@ -83,7 +83,7 @@ class _MetricaScreenState extends State<MetricaScreen> {
     final bool ehCelular = larguraTela < 950;
 
     DateTime agora = DateTime.now();
-    DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
+    final inicioDoDia = agora.subtract(const Duration(hours: 24));
 
     return Scaffold(
       backgroundColor: const Color(0xFF13131A),
@@ -101,7 +101,7 @@ class _MetricaScreenState extends State<MetricaScreen> {
 
           return StreamBuilder<QuerySnapshot>(
             // 📡 Stream 2: Puxa os pedidos da loja gerados NO DIA DE HOJE
-            stream: _firestore.collection('pedidos').where('lojaId', isEqualTo: widget.lojaId).where('criado_em', isGreaterThanOrEqualTo: inicioDoDia).snapshots(),
+            stream: _firestore.collection('pedidos').where('estabelecimento_id', isEqualTo: widget.lojaId).where('criado_em', isGreaterThanOrEqualTo: inicioDoDia).snapshots(),
             builder: (context, snapshotPedidos) {
               final int totalPedidosHoje = snapshotPedidos.hasData ? snapshotPedidos.data!.docs.length : 0;
 

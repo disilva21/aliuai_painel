@@ -263,9 +263,9 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      // backgroundColor: const Color(0xFFF5F5F5),
       body: Padding(
-        padding: const EdgeInsets.all(40.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -301,11 +301,13 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                       final bool emPromocao = dados['promocao'] ?? false;
 
                       return Card(
+                        color: Colors.white,
                         child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           title: Text(nome),
                           subtitle: emPromocao
                               ? Text(
-                                  'De R\$ ${precoBase.toStringAsFixed(2)} por R\$ ${precoPromo.toStringAsFixed(2)}',
+                                  'De  R\$ ${precoBase.toStringAsFixed(2)}  por  R\$ ${precoPromo.toStringAsFixed(2)}',
                                   style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                                 )
                               : Text('R\$ ${precoBase.toStringAsFixed(2)}'),

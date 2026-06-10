@@ -31,12 +31,12 @@ class PedidosScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: const Text('Pedidos em Tempo Real 🔔', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         foregroundColor: Colors.black87,
         elevation: 0,
+        backgroundColor: const Color(0xFFF5F5F5),
       ),
       body: StreamBuilder<QuerySnapshot>(
         // 📡 ESCUTA EM TEMPO REAL: Filtra os pedidos dessa loja, dos mais novos para os mais velhos
@@ -81,6 +81,7 @@ class PedidosScreen extends StatelessWidget {
               final config = _configurarStatus(status);
 
               return Card(
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 2,

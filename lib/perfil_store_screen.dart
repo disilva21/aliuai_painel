@@ -331,10 +331,9 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(ehCelular ? 16.0 : 40.0),
+          padding: EdgeInsets.all(ehCelular ? 10.0 : 10.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -347,13 +346,14 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
               SizedBox(height: ehCelular ? 20 : 32),
 
               Card(
+                color: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(color: Colors.grey[200]!),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0),
+                  padding: EdgeInsets.all(ehCelular ? 16.0 : 16.0),
                   child: Form(
                     key: _formKey,
                     child: Column(

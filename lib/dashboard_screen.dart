@@ -31,26 +31,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _diasRestantesParaVencer = 0;
   bool _mostrarBannerPeriodoDeGraca = false;
 
+  // 🔥 Rastreia quais abas já foram abertas pelo usuário sô!
+  // Como são 8 telas no seu IndexedStack, começamos com 8 falsos.
+  final List<bool> _abasCarregadas = List.generate(8, (index) => false);
+
   @override
   void initState() {
     super.initState();
     _inicializarPainel();
-
     _verificarPrimeiroAcesso();
   }
 
   Future<void> _verificarPrimeiroAcesso() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    // Se for nulo ou verdadeiro, significa que é a primeira vez dele sô!
     final bool primeiroAcesso = prefs.getBool('primeiro_acesso_painel') ?? true;
 
     if (primeiroAcesso && mounted) {
-      // Abre a nossa introdução estilizada
       OnboardingDialog.mostrar(context);
-
-      // Salva no navegador que ele já viu, para nunca mais incomodar o lojista
-      await prefs.setBool('primeiro_acesso_painel', true);
+      await prefs.setBool('primeiro_acesso_painel', false); // 🔥 Corrigido para false para salvar que já viu sô!
     }
   }
 
@@ -60,56 +58,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // 1. Busca o estabelecimento filtrando pelo campo 'uid' do nó de Auth
       final querySnapshot = await FirebaseFirestore.instance.collection('estabelecimentos').where('uid', isEqualTo: user.uid).limit(1).get();
 
       if (querySnapshot.docs.isNotEmpty) {
         final docLoja = querySnapshot.docs.first;
         final dadosLoja = docLoja.data();
 
-        // 2. Captura e armazena o ID de documento real (ID automático do Firebase)
         _lojaIdReal = docLoja.id;
 
-        // 3. Processamento das regras de negócio do Banner de Cobrança
         _statusPagamentoGeral = dadosLoja['status_pagamento'] ?? 'pendente';
         final Timestamp? timestampVencimento = dadosLoja['proximo_vencimento'];
 
-        // REGRA 1: Se for ISENTO, esconde o banner permanentemente
         if (_statusPagamentoGeral == 'isento') {
           _mostrarBannerPeriodoDeGraca = false;
           _diasRestantesParaVencer = 999;
-        }
-        // REGRA 1.2: Se for PERIODO TESTE, esconde o banner permanentemente
-        if (_statusPagamentoGeral == 'teste') {
+        } else if (_statusPagamentoGeral == 'teste') {
           _mostrarBannerPeriodoDeGraca = false;
           _diasRestantesParaVencer = 7;
-        }
-        // REGRA 2: Se for PENDENTE (Novo cadastro feito pelo Admin ou Dono)
-        else if (_statusPagamentoGeral == 'pendente') {
+        } else if (_statusPagamentoGeral == 'pendente') {
           _mostrarBannerPeriodoDeGraca = true;
           _diasRestantesParaVencer = 0;
-          _abaSelecionada = 6; // Redireciona para a aba correta baseada no seu mapa original
-        }
-        // REGRA 3: Se for EM_DIA ou ATRASADO, calcula com base na data de vencimento
-        else {
+          _abaSelecionada = 6; // Redireciona para os planos sô
+        } else {
           if (timestampVencimento != null) {
             final dataVencimento = timestampVencimento.toDate();
             final dataHoje = DateTime.now();
 
-            // Normaliza as datas para desconsiderar horas/minutos no cálculo dos dias
             final hojeApenasData = DateTime(dataHoje.year, dataHoje.month, dataHoje.day);
             final vencimentoApenasData = DateTime(dataVencimento.year, dataVencimento.month, dataVencimento.day);
 
             _diasRestantesParaVencer = vencimentoApenasData.difference(hojeApenasData).inDays;
 
-            // Ativa o banner se faltar 7 dias ou menos, ou se o status master já for 'atrasado'
             if (_diasRestantesParaVencer <= 7 || _statusPagamentoGeral == 'atrasado') {
               _mostrarBannerPeriodoDeGraca = true;
             } else {
               _mostrarBannerPeriodoDeGraca = false;
             }
           } else {
-            // Caso de contingência se o status for em_dia mas não houver data salva
             _mostrarBannerPeriodoDeGraca = false;
           }
         }
@@ -140,9 +125,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
             onPressed: () {
-              Navigator.pop(context); // Fecha o modal
+              Navigator.pop(context);
               setState(() {
-                _abaSelecionada = 5; // Ajustado dinamicamente para mirar o index correto da PlanosScreen
+                _abaSelecionada = 6; // Mirando o index correto da PlanosScreen sô!
               });
             },
             child: const Text('Visitar Agora', style: TextStyle(color: Colors.white)),
@@ -153,7 +138,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Construtor auxiliar de itens do menu lateral (Ajustado para Responsividade 📱)
+  /// 🛠️ SEU MÉTODO DE CONSTRUÇÃO DO ITEM DE MENU RECUPERADO AQUI SÔ!
   Widget _buildItemMenu({required int index, required String titulo, required IconData icone}) {
     final bool selecionado = _abaSelecionada == index;
     final bool ehCelular = MediaQuery.of(context).size.width < 800;
@@ -171,7 +156,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _abaSelecionada = index;
         });
 
-        // 🍔 SE FOR CELULAR: Fecha o menu hambúrguer suavemente após o clique sô!
         if (ehCelular) {
           Navigator.pop(context);
         }
@@ -187,13 +171,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final bool ehCelular = MediaQuery.of(context).size.width < 800;
+    // 🔥 Ativa o carregamento da aba atual no momento do clique sô!
+    _abasCarregadas[_abaSelecionada] = true;
 
-    // Gatilhos para estilização do Banner de aviso
+    final bool ehCelular = MediaQuery.of(context).size.width < 800;
     bool contaBloqueadaOuAtrasada = _statusPagamentoGeral == 'atrasado' || (_statusPagamentoGeral != 'isento' && _diasRestantesParaVencer < 0);
     bool contaNovaPendente = _statusPagamentoGeral == 'pendente';
 
-    // 📦 COMPONENTE DE MENU UNIFICADO (Roda idêntico no Drawer e na Sidebar do PC)
     Widget construirMenuCompleto() {
       return Container(
         width: 250,
@@ -208,7 +192,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            _buildItemMenu(index: 0, titulo: 'Dashboard', icone: Icons.delivery_dining_rounded),
+            _buildItemMenu(index: 0, titulo: 'Dashboard', icone: Icons.analytics_outlined), // Alterado ícone para combinar com Métricas sô!
             lineDivider(),
             _buildItemMenu(index: 1, titulo: 'Pedidos', icone: Icons.delivery_dining_rounded),
             lineDivider(),
@@ -231,7 +215,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () async {
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
-                  if (ehCelular) Navigator.pop(context); // Evita travamento de foco do Drawer
+                  if (ehCelular) Navigator.pop(context);
                   Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
                 }
               },
@@ -244,24 +228,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-
-      // 🍔 SE FOR CELULAR: Habilita o Drawer com o botão hambúrguer automático na AppBar
       drawer: ehCelular ? Drawer(child: construirMenuCompleto()) : null,
-
-      // 📐 Barra superior necessária para navegação mobile confortável
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E1E26),
         elevation: 0,
-        // title: const Text(
-        //   'aliuai Admin',
-        //   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-        // ),
-        centerTitle: ehCelular,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
-          // ⚠️ BANNER DE COBRANÇA INTELIGENTE
           if (_statusPagamentoGeral != 'isento' && _mostrarBannerPeriodoDeGraca)
             InkWell(
               onTap: _abrirModalPagamentoPix,
@@ -300,28 +274,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
-          // CORPO PRINCIPAL DO PAINEL (Sidebar + Telas Dinâmicas)
           Expanded(
             child: Row(
               children: [
-                // 🖥️ SE FOR COMPUTADOR: Renderiza o menu lateral fixo normal
                 if (!ehCelular) construirMenuCompleto(),
 
-                // 🖥️ VISUALIZADOR DE TELAS (INDEXED STACK)
                 Expanded(
                   child: Container(
-                    padding: EdgeInsets.all(ehCelular ? 8 : 16), // Dá mais tela útil no celular sô!
+                    padding: EdgeInsets.all(ehCelular ? 8 : 16),
+                    // 🛡️ O INDEXED STACK SEGURO E ECONÔMICO PLUGADO E PREPARADO!
                     child: IndexedStack(
                       index: _abaSelecionada,
                       children: [
-                        MetricaScreen(lojaId: _lojaIdReal!),
-                        PedidosScreen(lojaId: _lojaIdReal!),
-                        ProdutosScreen(lojaId: _lojaIdReal!),
-                        PromocoesScreen(lojaId: _lojaIdReal!),
-                        GerenciarEventosPage(lojaId: _lojaIdReal!),
-                        PerfilStoreScreen(lojaId: _lojaIdReal!),
-                        PlanosScreen(lojaId: _lojaIdReal!),
-                        const SegurancaScreen(),
+                        _abasCarregadas[0] ? MetricaScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[1] ? PedidosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[2] ? ProdutosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[3] ? PromocoesScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[4] ? GerenciarEventosPage(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[5] ? PerfilStoreScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[6] ? PlanosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[7] ? const SegurancaScreen() : const SizedBox.shrink(),
                       ],
                     ),
                   ),

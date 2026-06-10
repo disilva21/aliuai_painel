@@ -127,9 +127,8 @@ class _PlanosScreenState extends State<PlanosScreen> {
     final bool ehCelular = larguraTela < 950; // Aumentamos um tiquinho o limite para dar segurança nos monitores menores
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(ehCelular ? 16.0 : 40.0),
+        padding: EdgeInsets.all(ehCelular ? 10.0 : 10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -259,6 +258,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
     return Stack(
       children: [
         Card(
+          color: Colors.white,
           elevation: recomendar ? 4 : 0,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
@@ -266,7 +266,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
             side: BorderSide(color: isPlanoAtual ? corDestaque : (recomendar ? corDestaque.withOpacity(0.5) : Colors.grey[300]!), width: isPlanoAtual ? 3 : 1),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(16.0),
             key: ValueKey(idPlano),
             // 🔥 Para o Spacer funcionar e empurrar o botão, a Column precisa ocupar a altura total interna do Card
             child: SizedBox(

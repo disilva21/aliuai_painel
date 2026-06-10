@@ -131,7 +131,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
     if (widget.lojaId == null) return const Center(child: Text('Loja não identificada.'));
 
     return Padding(
-      padding: const EdgeInsets.all(40.0),
+      padding: const EdgeInsets.all(10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -235,26 +235,23 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                   );
                 }
 
-                return Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.grey[200]!),
-                  ),
-                  child: ListView.separated(
-                    itemCount: produtos.length,
-                    separatorBuilder: (context, index) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final item = produtos[index];
-                      final dados = item.data() as Map<String, dynamic>;
+                return ListView.builder(
+                  itemCount: produtos.length,
 
-                      String nome = dados['nome'] ?? 'Sem nome';
-                      double preco = (dados['preco'] ?? 0.0).toDouble();
-                      bool disponivel = dados['disponivel'] ?? true;
-                      String descricao = dados['descricao'] ?? '';
+                  itemBuilder: (context, index) {
+                    final item = produtos[index];
+                    final dados = item.data() as Map<String, dynamic>;
 
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    String nome = dados['nome'] ?? 'Sem nome';
+                    double preco = (dados['preco'] ?? 0.0).toDouble();
+                    bool disponivel = dados['disponivel'] ?? true;
+                    String descricao = dados['descricao'] ?? '';
+
+                    return Card(
+                      color: Colors.white,
+                      elevation: 0,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         title: Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 4.0),
@@ -290,9 +287,9 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                             ],
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
