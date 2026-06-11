@@ -1,5 +1,6 @@
-import 'package:aliuai_painel/admin/pagamento_screen.dart';
+import 'package:aliuai_painel/checkout_pix_screen.dart';
 import 'package:aliuai_painel/services/plano_service.dart';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -19,10 +20,92 @@ class _PlanosScreenState extends State<PlanosScreen> {
   String _planoAtual = 'indefinido';
   String? _nomeEstabelecimento;
 
+  // 🔥 NOVAS VARIÁVEIS DE CONTROLE PARA O PIX INTEGRADO NA TELA SÔ!
+  bool _mostrarPix = false;
+  String _idPagamentoGerado = '';
+
   @override
   void initState() {
     super.initState();
     _buscarPlanoAtual();
+  }
+
+  // Criamos o widget dinâmico de preço sô:
+  Widget _construirPreco(double valorPromocional, double valorOriginal) {
+    // CASO 1: Tem promoção activa (maior que zero e menor que o original)
+    if (valorPromocional > 0 && valorPromocional < valorOriginal) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Valor original riscado sô!
+              Text(
+                'R\$ ${valorOriginal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                  decoration: TextDecoration.lineThrough, // 🔥 Aqui tá o risco!
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Selo discreto de desconto
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFFE65100).withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                child: const Text(
+                  'PROMO',
+                  style: TextStyle(color: Color(0xFFE65100), fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Valor promocional grande sô!
+          Text(
+            'R\$ ${valorPromocional.toStringAsFixed(2)}/mês',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E1E26)),
+          ),
+          const Text(
+            'por 30 dias, depois valor normal',
+            style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+          ),
+        ],
+      );
+    }
+
+    // CASO 2: É de graça! (valor_promocional é 0)
+    if (valorPromocional == 0) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'R\$ ${valorOriginal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+              decoration: TextDecoration.lineThrough, // 🔥 Riscado também!
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Destaca o GRÁTIS em verde bem bonito sô!
+          const Text(
+            'GRÁTIS',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          const Text(
+            'Experimente por 30 dias sem pagar nada!',
+            style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+          ),
+        ],
+      );
+    }
+
+    // CASO 3: Sem promoção (mostra o valor padrão normal sô)
+    return Text(
+      'R\$ ${valorOriginal.toStringAsFixed(2)}/mês',
+      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E1E26)),
+    );
   }
 
   /// Puxa o plano que está salvo atualmente no banco
@@ -57,8 +140,10 @@ class _PlanosScreenState extends State<PlanosScreen> {
     }
   }
 
-  /// Abre a confirmation para o lojista
-  void _confirmarMudancaPlano(String nomePlano, String idPlano, double valor, int limite_prod, int limite_promo) {
+  /// Abre a confirmação para o lojista e integra com o fluxo novo sô!
+  void _confirmarMudancaPlano(String nomePlano, String idPlano, double valor, double valorPromocional, int limite_prod, int limite_promo) {
+    final valorPlano = valorPromocional < valor ? valorPromocional : valor;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -69,12 +154,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
             Text('Mudar de Plano'),
           ],
         ),
-        content: Text(
-          'Confirma a alteração do seu plano para o $nomePlano (${valor.toStringAsFixed(2).replaceAll('.', ',')}/mês)?\n\n'
-          'Seus novos limites serão:\n'
-          '• Até $limite_prod produtos cadastrados\n'
-          '• Até $limite_promo promoções ativas',
-        ),
+        content: Text('Confirma a alteração do seu plano para o $nomePlano (${valorPlano.toStringAsFixed(2).replaceAll('.', ',')}/mês)?\n\n'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -83,20 +163,39 @@ class _PlanosScreenState extends State<PlanosScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
             onPressed: () async {
-              Navigator.pop(context); // Fecha o modal
+              Navigator.pop(context); // Fecha a janelinha do confirmation sô!
 
-              PlanoService.iniciarMudancaDePlano(
-                context: context,
+              setState(() => _processandoUpgrade = true); // Liga o seu loading verde
+
+              // 🚀 Aciona o PlanoService que devolve apenas o ID gerado!
+              final String? idGerado = await PlanoService.iniciarMudancaDePlano(
                 lojaId: widget.lojaId,
                 nomeLoja: _nomeEstabelecimento!,
                 idNovoPlano: idPlano,
                 limiteProd: limite_prod,
                 limitePromo: limite_promo,
-                valorPlano: valor,
-                onLoadingChanged: (carregando) {
-                  setState(() => _processandoUpgrade = carregando);
-                },
+                valorPlano: valorPlano,
               );
+
+              if (mounted) setState(() => _processandoUpgrade = false); // Desliga o load
+
+              if (idGerado != null && mounted) {
+                // Se o plano contratado for PAGO (maior que 0), ativa a tela do Pix sô!
+                if (valorPlano > 0) {
+                  setState(() {
+                    _idPagamentoGerado = idGerado;
+                    _mostrarPix = true; // 🔥 Chaveia o layout para exibir o Pix!
+                  });
+                } else {
+                  // Se for grátis, o próprio service já rodou o update e soltou o SnackBar sô.
+                  // Vamos só atualizar o plano atual na tela para o lojista ver!
+                  _buscarPlanoAtual();
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao processar alteração do plano sô!'), backgroundColor: Colors.red));
+                }
+              }
             },
             child: const Text('Confirmar Alteração', style: TextStyle(color: Colors.white)),
           ),
@@ -124,13 +223,27 @@ class _PlanosScreenState extends State<PlanosScreen> {
       );
     }
 
+    // 🎯 INTEGRADO: SE O PIX ESTIVER ATIVADO, RENDERIZA ELE DIRETO NO CORPO SÔ!
+    if (_mostrarPix) {
+      return CheckoutPixScreen(
+        pagamentoId: _idPagamentoGerado,
+        onVoltar: () {
+          setState(() {
+            _mostrarPix = false; // Desativa e volta para a lista dinâmica
+          });
+          _buscarPlanoAtual(); // Dá um refresh no plano atual sô!
+        },
+      );
+    }
+
     // 🖥️ Captura o tamanho da tela para aplicar a responsividade cirúrgica sô!
     final double larguraTela = MediaQuery.of(context).size.width;
-    final bool ehCelular = larguraTela < 950; // Aumentamos um tiquinho o limite para dar segurança nos monitores menores
+    final bool ehCelular = larguraTela < 950;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5), // Mantido fundo limpo sô
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(ehCelular ? 10.0 : 10.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -162,7 +275,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                 ),
               ),
 
-            // 📡 STREAMBUILDER CONECTADO NA SUA COLEÇÃO 'PLANOS'
+            // 📡 SEU STREAMBUILDER DO FIREBASE CONTINUA TOTALMENTE VIVO E DINÂMICO SÔ!
             StreamBuilder<QuerySnapshot>(
               stream: _firestore.collection('planos').where('ativo', isEqualTo: true).orderBy('ordem').snapshots(),
               builder: (context, snapshot) {
@@ -180,19 +293,12 @@ class _PlanosScreenState extends State<PlanosScreen> {
 
                 final planosDocs = snapshot.data!.docs;
 
-                // 🔥 A MÁGICA DA RESPONSIVIDADE SEM QUEBRA DE LINHA:
-                // Se for celular, renderiza os cards um embaixo do outro normais sô.
-                // Se for computador, força o GridView a dividir a linha exatamente em 3 colunas iguais!
+                // Layout para Computador (3 Colunas Lado a Lado sô)
                 if (!ehCelular) {
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3, // Força exatamente 3 cards lado a lado sô!
-                      crossAxisSpacing: 20.0, // Espaço horizontal perfeito entre eles
-                      mainAxisSpacing: 20.0, // Espaço vertical caso houvesse mais linhas
-                      childAspectRatio: 0.62, // Controla a proporção (largura x altura) do card para não amassar o texto
-                    ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 20.0, mainAxisSpacing: 20.0, childAspectRatio: 0.62),
                     itemCount: planosDocs.length,
                     itemBuilder: (context, index) {
                       final doc = planosDocs[index];
@@ -201,7 +307,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                   );
                 }
 
-                // Layout de fallback para celulares (Lista Vertical limpa)
+                // Layout para Celular (Lista Vertical)
                 return Column(
                   children: planosDocs.map((doc) {
                     return Padding(padding: const EdgeInsets.only(bottom: 20.0), child: _montarCardDoDoc(doc, ehCelular));
@@ -222,7 +328,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
 
     final String titulo = dadosPlano['nome'] ?? 'Plano';
     final double valorReal = (dadosPlano['valor'] ?? 0.0).toDouble();
-    final String precoFormatado = valorReal.toStringAsFixed(2).replaceAll('.', ',');
+    final double valorPromocional = (dadosPlano['valor_promocional'] ?? 0.0).toDouble();
 
     final int limiteProd = dadosPlano['limite_produtos'] ?? 0;
     final int limitePromo = dadosPlano['limite_promocoes'] ?? 0;
@@ -233,20 +339,22 @@ class _PlanosScreenState extends State<PlanosScreen> {
 
     return _buildCardPlano(
       titulo: titulo,
-      preco: precoFormatado,
+      valorOriginal: valorReal,
+      valorPromocional: valorPromocional,
       idPlano: planoId,
       corDestaque: _obterCorDestaque(planoId),
       recomendar: recomendar,
       recursos: recursos,
       descricao: dadosPlano['descricao'] ?? '',
       ehCelular: ehCelular,
-      onEscolher: () => _confirmarMudancaPlano(titulo, planoId, valorReal, limiteProd, limitePromo),
+      onEscolher: () => _confirmarMudancaPlano(titulo, planoId, valorReal, valorPromocional, limiteProd, limitePromo),
     );
   }
 
   Widget _buildCardPlano({
     required String titulo,
-    required String preco,
+    required double valorOriginal,
+    required double valorPromocional,
     required String idPlano,
     required Color corDestaque,
     required List<String> recursos,
@@ -270,7 +378,6 @@ class _PlanosScreenState extends State<PlanosScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             key: ValueKey(idPlano),
-            // 🔥 Para o Spacer funcionar e empurrar o botão, a Column precisa ocupar a altura total interna do Card
             child: SizedBox(
               height: double.infinity,
               child: Column(
@@ -289,23 +396,15 @@ class _PlanosScreenState extends State<PlanosScreen> {
                   Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   if (descricao.isNotEmpty) ...[const SizedBox(height: 6), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
                   const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      const Text('R\$ ', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                      Text(
-                        preco,
-                        style: TextStyle(fontSize: ehCelular ? 32 : 40, fontWeight: FontWeight.bold),
-                      ),
-                      const Text(' /mês', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                    ],
-                  ),
+
+                  // 🔥 RENDERIZA O VALOR COM A REGRA DO PREÇO RISCADO DINÂMICO SÔ!
+                  _construirPreco(valorPromocional, valorOriginal),
+
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // Lista de recursos
+                  // Lista de recursos vinda da collection planos sô!
                   Column(
                     children: recursos.map((rec) {
                       bool esgotado = rec.contains('Sem');
@@ -328,11 +427,8 @@ class _PlanosScreenState extends State<PlanosScreen> {
                     }).toList(),
                   ),
 
-                  // 🔥 A MÁGICA ESTÁ AQUI SÔ!
-                  // O Spacer calcula dinamicamente quanto espaço sobrou na Column de cada card
-                  // e empurra o botão lá para o final de forma simétrica nos 3 cards!
                   if (!ehCelular) const Spacer(),
-                  if (ehCelular) const SizedBox(height: 32), // No celular um espaçamento simples basta
+                  if (ehCelular) const SizedBox(height: 32),
 
                   SizedBox(
                     width: double.infinity,
@@ -347,7 +443,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                       onPressed: isPlanoAtual ? null : onEscolher,
                       child: Text(
                         isPlanoAtual
-                            ? 'Plano Atual'
+                            ? 'Plano Ativo'
                             : _planoAtual == 'indefinido'
                             ? 'Escolher Plano'
                             : 'Migrar de Plano',

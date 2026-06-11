@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 // Importações das suas telas filhas
 import 'produtos_screen.dart';
@@ -25,6 +26,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _abaSelecionada = 0;
   String? _lojaIdReal; // Guarda o ID automático real do Firestore (ex: ABCDE123)
   bool _carregandoDadosLoja = true;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _primeiraCarga = true;
+  bool _somAtivado = true;
 
   // Variáveis de controle do motor financeiro / banner
   String _statusPagamentoGeral = 'pendente';
@@ -40,6 +44,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _inicializarPainel();
     _verificarPrimeiroAcesso();
+    _escutarNovosPedidos();
+  }
+
+  void _escutarNovosPedidos() {
+    FirebaseFirestore.instance
+        .collection('pedidos')
+        .where('estabelecimento_id', isEqualTo: _lojaIdReal)
+        .where('status', isEqualTo: 'pendente') // Filtra apenas pedidos novos sô!
+        .snapshots()
+        .listen((snapshot) async {
+          // 🎯 Se for a primeira vez que a tela abre, o Firestore traz o histórico.
+          // Ignoramos a primeira carga para o painel não começar apitando igual doido sô!
+          if (_primeiraCarga) {
+            _primeiraCarga = false;
+            return;
+          }
+
+          // 🔥 Se o snapshot teve modificações e alguma delas foi um documento ADICIONADO:
+          for (var change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added) {
+              try {
+                // Toca o som do alerta!
+                if (_somAtivado) {
+                  try {
+                    await _audioPlayer.play(AssetSource('sounds/notificacao.mp3'));
+                  } catch (e) {
+                    print("Erro ao tocar som sô: $e");
+                  }
+                }
+              } catch (e) {
+                print("Erro ao tocar som sô: $e");
+              }
+            }
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose(); // Limpa o player da memória sô!
+    super.dispose();
   }
 
   Future<void> _verificarPrimeiroAcesso() async {
@@ -47,8 +92,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool primeiroAcesso = prefs.getBool('primeiro_acesso_painel') ?? true;
 
     if (primeiroAcesso && mounted) {
-      OnboardingDialog.mostrar(context);
       await prefs.setBool('primeiro_acesso_painel', false); // 🔥 Corrigido para false para salvar que já viu sô!
+      OnboardingDialog.mostrar(context);
     }
   }
 
@@ -233,7 +278,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: const Color(0xFF1E1E26),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          // 🔔 Botão de Ligar/Desligar Som Estilizado
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: IconButton(
+              // Muda o ícone dependendo do estado sô!
+              icon: Icon(_somAtivado ? Icons.volume_up_rounded : Icons.volume_off_rounded, color: Colors.white),
+              // Se estiver ligado fica Verde, se estiver mutado fica Cinza ou Vermelho
+              style: IconButton.styleFrom(backgroundColor: _somAtivado ? Colors.green : Colors.grey[600]),
+              tooltip: _somAtivado ? 'Desativar som dos pedidos' : 'Ativar som dos pedidos',
+              onPressed: () {
+                setState(() {
+                  _somAtivado = !_somAtivado; // 🔥 Inverte o estado ao clicar sô!
+                });
+
+                // Uma mensagem rápida no rodapé para confirmar a ação do lojista
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_somAtivado ? 'Alertas sonoros ativados! 🔊' : 'Painel silenciado! 🔇'),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: _somAtivado ? Colors.green : Colors.black87,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
+
       body: Column(
         children: [
           if (_statusPagamentoGeral != 'isento' && _mostrarBannerPeriodoDeGraca)

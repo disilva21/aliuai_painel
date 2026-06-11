@@ -73,8 +73,11 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         final nomeArquivo = resultado.files.first.name;
         final extensao = nomeArquivo.split('.').last;
 
+        final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+
         // 3. Define a referência usando o ID limpo da loja
-        final ref = _storage.ref().child('produtos/${widget.lojaId}.$extensao');
+
+        final ref = _storage.ref().child('produtos/${widget.lojaId}_$timestamp.$extensao');
 
         // 4. Executa o upload em Bytes para Flutter Web
         UploadTask uploadTask = ref.putData(arquivoBytes, SettableMetadata(contentType: 'image/$extensao'));
