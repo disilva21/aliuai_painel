@@ -289,6 +289,22 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                   final produtos = snapshot.data!.docs;
                   _promocoesAtivasAgora = produtos.where((doc) => (doc.data() as Map)['promocao'] == true).length;
 
+                  if (_promocoesAtivasAgora <= 0) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Nenhuma promoção cadastrado ainda, uai!',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   return ListView.builder(
                     itemCount: produtos.length,
                     itemBuilder: (context, index) {

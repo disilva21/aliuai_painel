@@ -24,7 +24,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
   bool _senhaInvisivel = true;
 
   String? _estadoSelecionado;
-  String? _cidadeSelecionadaId;
 
   String? _nomeCidadeSelecionada; // Guarda o nome limpo da cidade (ex: "Porto Firme")
 
@@ -94,7 +93,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   Future<void> _buscarCidadesDoIBGE(String uf) async {
     setState(() {
       _carregandoCidades = true;
-      _cidadeSelecionadaId = null;
+
       _nomeCidadeSelecionada = null;
       _cidadesDisponiveis = [];
     });
@@ -142,7 +141,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   Future<void> _cadastrarParceiro() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_cidadeSelecionadaId == null || _nomeCidadeSelecionada == null) {
+    if (_nomeCidadeSelecionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, selecione a sua cidade, uai!'), backgroundColor: Colors.amber));
       return;
     }
@@ -187,8 +186,18 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
         String idAmigavel = gerarSlugEstabelecimento(_nomeLojaController.text);
 
+        // 2. Checa se já existe um DOCUMENTO com esse ID exato sô
+        var docExistente = await FirebaseFirestore.instance.collection('estabelecimentos').doc(idAmigavel).get();
+        // 3. Se o portão estiver fechado (já existe), adiciona o código complementar!
+        if (docExistente.exists) {
+          // Pode ser um número sequencial, ou um hash curto aleatório sô (ex: 4 dígitos)
+          String codigoCurto = DateTime.now().millisecondsSinceEpoch.toString().substring(10);
+          idAmigavel = "$idAmigavel-$codigoCurto"; // Viraria: banca-do-nelson-vicosa-452
+        }
+
         await FirebaseFirestore.instance.collection('estabelecimentos').doc(idAmigavel).set({
           'uid': uidUsuario,
+          'slug': idAmigavel,
           'nome': _nomeLojaController.text.trim(),
           'cidade_id': idCidadeFinal,
           'email': _emailController.text.trim(),
@@ -358,7 +367,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                               ),
                               validator: (val) {
                                 if (val == null || val.isEmpty) return 'Digite ou selecione uma cidade.';
-                                if (!_cidadesDisponiveis.contains(val)) return 'Selecione uma cidade válida da lista.';
+
                                 return null;
                               },
                             );
@@ -403,40 +412,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
                           },
                         ),
 
-                  // COMBO CIDADE (IBGE)
-                  // _carregandoCidades
-                  //     ? const Center(
-                  //         child: Padding(
-                  //           padding: EdgeInsets.all(8.0),
-                  //           child: CircularProgressIndicator(color: Color(0xFFE65100)),
-                  //         ),
-                  //       )
-                  //     :
-
-                  //     DropdownButtonFormField<String>(
-                  //         value: _cidadeSelecionadaId,
-                  //         disabledHint: const Text('Selecione primeiro o estado'),
-                  //         decoration: InputDecoration(
-                  //           labelText: 'Sua Cidade',
-                  //           prefixIcon: const Icon(Icons.location_on, color: Color(0xFFE65100)),
-                  //           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  //         ),
-                  //         items: _estadoSelecionado == null
-                  //             ? null
-                  //             : _cidadesDisponiveis.map((cidade) {
-                  //                 return DropdownMenuItem<String>(value: cidade['id'].toString(), child: Text(cidade['nome'].toString()));
-                  //               }).toList(),
-                  //         onChanged: (id) {
-                  //           if (id != null) {
-                  //             final itemSelecionado = _cidadesDisponiveis.firstWhere((c) => c['id'] == id);
-                  //             setState(() {
-                  //               _cidadeSelecionadaId = id;
-                  //               _nomeCidadeSelecionada = itemSelecionado['nome']; // Guarda o nome real
-                  //             });
-                  //           }
-                  //         },
-                  //         validator: (val) => val == null ? 'Selecione uma cidade.' : null,
-                  //       ),
                   const SizedBox(height: 16),
 
                   // E-MAIL

@@ -19,11 +19,11 @@ class PlanoService {
     onLoadingChanged(true);
 
     // 1. Abre o loading na tela usando o context recebido
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE65100))),
-    );
+    // showDialog(
+    //   context: context,
+    //   barrierDismissible: false,
+    //   builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE65100))),
+    // );
 
     try {
       // 2. 💾 Grava o documento na coleção de pagamentos
@@ -44,6 +44,13 @@ class PlanoService {
 
       // 3. 🚀 Redireciona para a tela de checkout passando o ID gerado
       Navigator.push(context, MaterialPageRoute(builder: (context) => CheckoutPixScreen(pagamentoId: docRef.id)));
+      // showDialog(
+      //   context: context,
+      //   barrierDismissible: false, // Impede o lojista de fechar clicando fora do quadrado
+      //   builder: (context) {
+      //     return CheckoutPixScreen(pagamentoId: docRef.id); // Passa o ID gerado normalmente!
+      //   },
+      // );
 
       // Avisa a tela que terminou com sucesso
       onLoadingChanged(false);

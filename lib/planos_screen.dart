@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/admin/pagamento_screen.dart';
 import 'package:aliuai_painel/services/plano_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,11 +47,11 @@ class _PlanosScreenState extends State<PlanosScreen> {
   Color _obterCorDestaque(String idPlano) {
     switch (idPlano) {
       case 'inicial':
-        return Colors.grey[700]!;
+        return const Color(0xFFE65100);
       case 'intermediario':
         return const Color(0xFFE65100);
       case 'master':
-        return const Color(0xFF1E1E26);
+        return const Color(0xFFE65100);
       default:
         return const Color(0xFFE65100);
     }
@@ -81,8 +82,9 @@ class _PlanosScreenState extends State<PlanosScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // Fecha o modal
+
               PlanoService.iniciarMudancaDePlano(
                 context: context,
                 lojaId: widget.lojaId,
@@ -106,7 +108,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
   @override
   Widget build(BuildContext context) {
     if (_carregando) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
+      return const Center(child: CircularProgressIndicator(color: Color.fromARGB(255, 19, 7, 0)));
     }
 
     if (_processandoUpgrade) {
@@ -114,7 +116,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Color(0xFFE65100)),
+            CircularProgressIndicator(color: Color.fromARGB(255, 0, 230, 12)),
             SizedBox(height: 16),
             Text('Configurando seus novos limites no aliuai...', style: TextStyle(fontWeight: FontWeight.bold)),
           ],

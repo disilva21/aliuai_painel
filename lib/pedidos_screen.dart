@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Para formatar a data/hora bonitinha
+import 'package:intl/intl.dart';
+import 'package:web/web.dart' as web;
+import 'dart:js_interop';
 
 class PedidosScreen extends StatelessWidget {
   final String lojaId;
@@ -70,7 +72,7 @@ class PedidosScreen extends StatelessWidget {
               final pedido = pedidosDocs[index].data() as Map<String, dynamic>;
 
               final String status = pedido['status'] ?? 'pendente';
-              final String cliente = pedido['nome_cliente'] ?? 'Cliente';
+
               final double total = (pedido['total'] ?? 0.0).toDouble();
               final List<dynamic> itens = pedido['itens'] ?? [];
 
@@ -173,6 +175,27 @@ class PedidosScreen extends StatelessWidget {
                                 ),
                               const Spacer(),
 
+                              IconButton(
+                                icon: const Icon(Icons.print_rounded, color: Color(0xFFE65100)),
+                                onPressed: () {
+                                  // Dispara a impressão que monta o cupom na hora!
+                                  imprimirPedidoWeb(
+                                    estabelecimento: pedido['estabelecimento_id'],
+                                    numeroPedido: pedido['pedido'],
+                                    nomeCliente: pedido['nome_cliente'],
+                                    tipoEntrega: pedido['endereco'],
+                                    formaPagamento: pedido['forma_pagamento'],
+                                    itens: pedido['itens'],
+                                    // itens:
+                                    // [
+                                    //   {'qtd': 2, 'nome': 'Pastel de Carne', 'preco': '14,00'},
+                                    //   {'qtd': 1, 'nome': 'Coca-Cola Lata', 'preco': '6,00'},
+                                    // ],
+                                    total: total,
+                                  );
+                                },
+                              ),
+                              const Spacer(),
                               // Botão Dinâmico de Avanço
                               if (config['proximo'] != null)
                                 ElevatedButton(
@@ -197,5 +220,102 @@ class PedidosScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void imprimirPedidoWeb({
+    required String estabelecimento,
+    required String numeroPedido,
+    required String nomeCliente,
+    required String tipoEntrega,
+    required String formaPagamento,
+    required List<dynamic> itens,
+    required double total,
+  }) {
+    // 📝 1. Montamos a estrutura do cupom formatada para bobina térmica
+    String conteudoHtml =
+        '''
+    <html>
+      <head>
+        <style>
+          @page { size: auto; margin: 0mm; }
+          body { 
+            font-family: 'Courier New', Courier, monospace; /* Fonte estilo cupom sô */
+            width: 280px; /* Largura ideal para bobinas de 80mm */
+            margin: 10px;
+            font-size: 12px;
+            color: #000;
+          }
+          .centralizado { text-align: center; }
+          .linha { border-bottom: 1px dashed #000; margin: 8px 0; }
+          .item { display: flex; main-axis-alignment: space-between; }
+          .negrito { font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="centralizado negrito" style="font-size: 16px;">🔥 PAINEL ALIUAI 🔥</div>
+        <div class="centralizado">Pedido: #$numeroPedido</div>
+        
+        
+        <div class="linha"></div>
+        <div><span class="negrito">Cliente:</span> $nomeCliente</div>
+        <div><span class="negrito">Operação:</span> $tipoEntrega</div>
+         <div><span class="negrito">Pagamento:</span> $formaPagamento</div>
+        <div class="linha"></div>
+
+        
+        <div class="negrito">ITENS DO PEDIDO:</div>
+  ''';
+
+    // Loop para listar os produtos do carrinho
+    for (var itemDynamic in itens) {
+      // Forçamos o Dart a entender o item como um mapa de chave e valor
+      final item = itemDynamic as Map<String, dynamic>;
+
+      // Buscamos os campos exatamente como você salvou no banco (ajuste os nomes se necessário sô!)
+      final int qtd = item['quantidade'] ?? 1;
+      final String nome = item['nome_produto'] ?? 'Produto';
+
+      // Tratamento para o preço não quebrar se vier double, int ou String sô
+      final double precoOriginal = (item['preco_unitario'] ?? 0.0).toDouble();
+      final String precoFormatado = precoOriginal.toStringAsFixed(2).replaceAll('.', ',');
+
+      conteudoHtml +=
+          '''
+      <div class="item">
+        <span>${qtd}x $nome</span>
+        <span>R\$ $precoFormatado</span>
+      </div>
+    ''';
+    }
+
+    conteudoHtml +=
+        '''
+        <div class="linha"></div>
+        <div class="item negrito" style="font-size: 14px;">
+          <span>TOTAL:</span>
+          <span>R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}</span>
+        </div>
+        <br>
+        <div class="centralizado">Obrigado pela preferência! 🤠</div>
+        <br><br>
+      </body>
+    </html>
+  ''';
+
+    // 🚀 2. A MÁGICA WEB: Cria uma janela oculta e manda imprimir direto sô!
+    final janelaImpressao = web.window.open('', '_blank', 'width=400,height=600');
+    if (janelaImpressao != null) {
+      janelaImpressao.document.write(conteudoHtml.toJS);
+      janelaImpressao.document.close();
+
+      // Pequeno delay para garantir que o HTML carregou na janelinha antes de abrir o print
+      web.window.setTimeout(
+        () {
+          janelaImpressao.print();
+          janelaImpressao.close();
+        }.toJS,
+        500.toJS,
+      );
+    }
   }
 }

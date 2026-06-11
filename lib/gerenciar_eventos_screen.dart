@@ -199,9 +199,11 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
                   const SizedBox(height: 12),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF7B1FA2)),
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => CadastroEventoPage(lojaId: widget.lojaId)));
-                    },
+                    onPressed: _planoAtual == 'indefinido'
+                        ? _mostrarAlertaPagamento
+                        : () {
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => CadastroEventoPage(lojaId: widget.lojaId)));
+                          },
                     child: const Text('Criar Meu Primeiro Evento', style: TextStyle(color: Colors.white)),
                   ),
                 ],
