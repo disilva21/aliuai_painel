@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/caderneta_fiado_screen.dart';
 import 'package:aliuai_painel/gerenciar_eventos_screen.dart';
 import 'package:aliuai_painel/metrica_screen.dart';
 import 'package:aliuai_painel/onboarding_dialog.dart';
@@ -35,9 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _diasRestantesParaVencer = 0;
   bool _mostrarBannerPeriodoDeGraca = false;
 
-  // 🔥 Rastreia quais abas já foram abertas pelo usuário sô!
-  // Como são 8 telas no seu IndexedStack, começamos com 8 falsos.
-  final List<bool> _abasCarregadas = List.generate(8, (index) => false);
+  final List<bool> _abasCarregadas = List.generate(9, (index) => false);
 
   @override
   void initState() {
@@ -251,7 +250,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             lineDivider(),
             _buildItemMenu(index: 6, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
             lineDivider(),
-            _buildItemMenu(index: 7, titulo: 'Segurança', icone: Icons.lock_outline),
+            _buildItemMenu(index: 7, titulo: 'Cardeneta Fiado', icone: Icons.menu_book_rounded),
+            lineDivider(),
+            _buildItemMenu(index: 8, titulo: 'Segurança', icone: Icons.lock_outline),
             lineDivider(),
 
             ListTile(
@@ -361,12 +362,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         _abasCarregadas[0] ? MetricaScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[1] ? PedidosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        // _abasCarregadas[2] ? ProdutosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[2] ? ProdutosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[3] ? PromocoesScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[4] ? GerenciarEventosPage(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[5] ? PerfilStoreScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
                         _abasCarregadas[6] ? PlanosScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
-                        _abasCarregadas[7] ? const SegurancaScreen() : const SizedBox.shrink(),
+                        _abasCarregadas[7] ? CadernetaFiadoScreen(lojaId: _lojaIdReal!) : const SizedBox.shrink(),
+                        _abasCarregadas[8] ? const SegurancaScreen() : const SizedBox.shrink(),
                       ],
                     ),
                   ),

@@ -37,7 +37,8 @@ class MeusItensDeMenuWidget extends StatelessWidget {
             buildItemMenu(index: 4, titulo: 'Eventos', icone: Icons.add_location_alt_outlined),
             buildItemMenu(index: 5, titulo: 'Meu Perfil', icone: Icons.storefront_outlined),
             buildItemMenu(index: 6, titulo: 'Planos de Assinatura', icone: Icons.rocket_launch_outlined),
-            buildItemMenu(index: 7, titulo: 'Segurança', icone: Icons.lock_outline),
+            buildItemMenu(index: 7, titulo: 'Cardeneta Fiado', icone: Icons.menu_book_rounded),
+            buildItemMenu(index: 8, titulo: 'Segurança', icone: Icons.lock_outline),
 
             const Divider(color: Colors.white10),
 
