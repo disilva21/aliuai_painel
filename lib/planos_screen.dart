@@ -298,7 +298,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 20.0, mainAxisSpacing: 20.0, childAspectRatio: 0.62),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 10.0, mainAxisSpacing: 15.0, childAspectRatio: 0.52),
                     itemCount: planosDocs.length,
                     itemBuilder: (context, index) {
                       final doc = planosDocs[index];
@@ -378,81 +378,80 @@ class _PlanosScreenState extends State<PlanosScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             key: ValueKey(idPlano),
-            child: SizedBox(
-              height: double.infinity,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isPlanoAtual)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                      child: Text(
-                        'Seu Plano Ativo ✔',
-                        style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
+            // 🔥 CORRIGIDO SÔ: Tiramos o SizedBox(height: double.infinity) que quebrava o Mobile!
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // Faz o card abraçar o conteúdo no celular sô!
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isPlanoAtual)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                    child: Text(
+                      'Seu Plano Ativo ✔',
+                      style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
-                  Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  if (descricao.isNotEmpty) ...[const SizedBox(height: 6), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
-                  const SizedBox(height: 16),
+                  ),
+                Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                if (descricao.isNotEmpty) ...[const SizedBox(height: 6), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
+                const SizedBox(height: 16),
 
-                  // 🔥 RENDERIZA O VALOR COM A REGRA DO PREÇO RISCADO DINÂMICO SÔ!
-                  _construirPreco(valorPromocional, valorOriginal),
+                // 🔥 RENDERIZA O VALOR COM A REGRA DO PREÇO RISCADO DINÂMICO SÔ!
+                _construirPreco(valorPromocional, valorOriginal),
 
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
 
-                  // Lista de recursos vinda da collection planos sô!
-                  Column(
-                    children: recursos.map((rec) {
-                      bool esgotado = rec.contains('Sem');
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(esgotado ? Icons.cancel_outlined : Icons.check_circle_outline_rounded, color: esgotado ? Colors.red[300] : Colors.green[600], size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                rec,
-                                style: TextStyle(fontSize: 13, color: esgotado ? Colors.grey : Colors.black87, decoration: esgotado ? TextDecoration.lineThrough : null),
-                              ),
+                // Lista de recursos vinda da collection planos sô!
+                Column(
+                  children: recursos.map((rec) {
+                    bool esgotado = rec.contains('Sem');
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(esgotado ? Icons.cancel_outlined : Icons.check_circle_outline_rounded, color: esgotado ? Colors.red[300] : Colors.green[600], size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              rec,
+                              style: TextStyle(fontSize: 13, color: esgotado ? Colors.grey : Colors.black87, decoration: esgotado ? TextDecoration.lineThrough : null),
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-
-                  if (!ehCelular) const Spacer(),
-                  if (ehCelular) const SizedBox(height: 32),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: isPlanoAtual ? Colors.grey[100] : (recomendar ? corDestaque : Colors.transparent),
-                        side: BorderSide(color: isPlanoAtual ? Colors.grey[300]! : corDestaque),
-                        foregroundColor: isPlanoAtual ? Colors.grey[600] : (recomendar ? Colors.white : corDestaque),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ],
                       ),
-                      onPressed: isPlanoAtual ? null : onEscolher,
-                      child: Text(
-                        isPlanoAtual
-                            ? 'Plano Ativo'
-                            : _planoAtual == 'indefinido'
-                            ? 'Escolher Plano'
-                            : 'Migrar de Plano',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
+                    );
+                  }).toList(),
+                ),
+
+                // 🎯 PULO DO GATO: O Spacer só empurra o botão para o rodapé na Web. No celular, usamos um espaço fixo!
+                if (!ehCelular) const Spacer() else const SizedBox(height: 32),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: isPlanoAtual ? Colors.grey[100] : (recomendar ? corDestaque : Colors.transparent),
+                      side: BorderSide(color: isPlanoAtual ? Colors.grey[300]! : corDestaque),
+                      foregroundColor: isPlanoAtual ? Colors.grey[600] : (recomendar ? Colors.white : corDestaque),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: isPlanoAtual ? null : onEscolher,
+                    child: Text(
+                      isPlanoAtual
+                          ? 'Plano Ativo'
+                          : _planoAtual == 'indefinido'
+                          ? 'Escolher Plano'
+                          : 'Migrar de Plano',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

@@ -1,8 +1,11 @@
 import 'package:aliuai_painel/lancar_fiado_screen.dart';
 import 'package:aliuai_painel/models/cliente_fiado_model.dart';
 import 'package:aliuai_painel/models/divida_fiado_model.dart';
+import 'package:aliuai_painel/util/formatar_telefone.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class CadernetaFiadoScreen extends StatefulWidget {
@@ -21,6 +24,19 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
   final List<String> _dividasSelecionadasIds = []; // Controla os checkboxes de abatimento
   final TextEditingController _abatimentoController = TextEditingController();
   bool _processandoAbatimento = false;
+
+  // 🔍 Controles do Filtro e Paginação Dinâmica sô
+  final TextEditingController _buscaController = TextEditingController();
+  String _textoBusca = "";
+  int _limiteAtual = 10; // 🔥 Nasce trazendo apenas 10 clientes sô!
+  bool _temMaisClientes = true;
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    _abatimentoController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +64,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        // StatefulBuilder para controlar o botão de carregar sô
         builder: (context, setModalState) {
           return AlertDialog(
             title: Text('Anotar na conta de: ${cliente.nome} 📒✍️', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -59,7 +74,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                 TextField(
                   controller: valorCtrl,
                   keyboardType: TextInputType.number,
-                  autofocus: true, // Já abre piscando no preço sô!
+                  autofocus: true,
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   decoration: const InputDecoration(labelText: 'Valor da Compra (R\$)', prefixText: 'R\$ ', border: OutlineInputBorder()),
                 ),
@@ -86,7 +101,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           final batch = _firestore.batch();
                           final String descricaoCompra = descCtrl.text.trim().isEmpty ? "Compra Geral" : descCtrl.text.trim();
 
-                          // 1️⃣ Lança no histórico
                           final novaDividaRef = _firestore.collection('historico_fiado').doc();
                           batch.set(novaDividaRef, {
                             'loja_id': widget.lojaId,
@@ -99,14 +113,20 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                             'pagamentos_parciais': [],
                           });
 
-                          // 2️⃣ Incrementa o saldo do cliente sô!
                           final clienteRef = _firestore.collection('clientes_fiado').doc(cliente.id);
                           batch.update(clienteRef, {'saldo_devedor': FieldValue.increment(valorCompra), 'atualizado_em': FieldValue.serverTimestamp()});
 
                           await batch.commit();
 
+                          final snapAtualizado = await clienteRef.get();
+                          if (snapAtualizado.exists && mounted) {
+                            setState(() {
+                              _clienteSelecionado = ClienteFiadoModel.fromFirestore(snapAtualizado);
+                            });
+                          }
+
                           if (context.mounted) {
-                            Navigator.pop(context); // Fecha o modal sô
+                            Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fiado anotado no caderno! 📝'), backgroundColor: Colors.green));
                           }
                         } catch (e) {
@@ -125,16 +145,16 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
   }
 
   // =========================================================================
-  // 🟢 TELA 1: LISTA GERAL DE CLIENTES DO FIADO CORRIGIDA E RESPONSIVA SÔ!
+  // 🟢 TELA 1: LISTA GERAL DE CLIENTES DO FIADO COM FILTRO E PAGINAÇÃO SÔ!
   // =========================================================================
   Widget _construirListaClientes(bool ehCelular) {
     return Padding(
       key: const ValueKey('lista_clientes'),
-      padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0), // Margem menor no celular sô
+      padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🚨 TOPO RESPONSIVO: Se for celular, empilha o título e o botão!
+          // 🚨 TOPO RESPONSIVO
           ehCelular
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,7 +166,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                     const SizedBox(height: 4),
                     Text('Contas de balcão dos seus clientes.', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                     const SizedBox(height: 16),
-                    // Botão ocupa a largura toda no celular sô!
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -166,7 +185,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                   ],
                 )
               : Row(
-                  // 🖥️ Layout Web Normal (Lado a Lado sô)
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
@@ -196,12 +214,51 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                   ],
                 ),
 
-          SizedBox(height: ehCelular ? 24 : 32),
+          const SizedBox(height: 24),
 
-          // 📡 Lista de Devedores
+          // 🔍 CAIXA DE PESQUISA HÍBRIDA
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFEEEEEE)),
+            ),
+            child: TextField(
+              controller: _buscaController,
+              onChanged: (valor) {
+                setState(() {
+                  _textoBusca = valor.trim().toLowerCase();
+                  _limiteAtual = 10; // Resetamos a paginação ao digitar sô!
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Pesquisar por nome ou telefone do cliente sô...',
+                prefixIcon: const Icon(Icons.search, color: Color(0xFFE65100)),
+                suffixIcon: _textoBusca.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _buscaController.clear();
+                          setState(() {
+                            _textoBusca = "";
+                            _limiteAtual = 10;
+                          });
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // 📡 LISTA COM STREAMBUILDER E PAGINAÇÃO CONTROLADA SÔ!
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore.collection('clientes_fiado').where('loja_id', isEqualTo: widget.lojaId).orderBy('nome').snapshots(),
+              // Passamos o _limiteAtual direto na Query do Stream sô!
+              stream: _firestore.collection('clientes_fiado').where('loja_id', isEqualTo: widget.lojaId).orderBy('nome').limit(_limiteAtual).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text('Erro ao carregar devedores sô: ${snapshot.error}'));
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
@@ -212,18 +269,58 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                       children: [
                         Icon(Icons.menu_book_rounded, size: 56, color: Colors.grey[400]),
                         const SizedBox(height: 16),
-                        const Text('Nenhum cliente com fiado registrado sô. 🎉', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                        const Text('Nenhum cliente registrado sô. 🎉', style: TextStyle(color: Colors.grey, fontSize: 15)),
                       ],
                     ),
                   );
                 }
 
-                final devedores = snapshot.data!.docs;
+                final devedoresCompletos = snapshot.data!.docs;
+
+                // Filtramos em memória por Nome ou Telefone sô
+                final devedoresFiltrados = devedoresCompletos.where((doc) {
+                  final cliente = ClienteFiadoModel.fromFirestore(doc);
+                  if (_textoBusca.isEmpty) return true;
+                  String telefoneLimpo = cliente.telefone.replaceAll(RegExp(r'[^0-9]'), '');
+                  return cliente.nome.toLowerCase().contains(_textoBusca) || telefoneLimpo.contains(_textoBusca);
+                }).toList();
+
+                // Se trouxe menos registros do que o limite, a fonte secou sô!
+                _temMaisClientes = devedoresCompletos.length == _limiteAtual;
+
+                if (devedoresFiltrados.isEmpty) {
+                  return Center(
+                    child: Text('Nenhum cliente encontrado para "$_textoBusca" 🔍', style: const TextStyle(color: Colors.grey)),
+                  );
+                }
 
                 return ListView.builder(
-                  itemCount: devedores.length,
+                  itemCount: devedoresFiltrados.length + (_temMaisClientes ? 1 : 0), // +1 para a linha do botão sô!
                   itemBuilder: (context, index) {
-                    final cliente = ClienteFiadoModel.fromFirestore(devedores[index]);
+                    // ⏭️ LINHA DO BOTÃO CARREGAR MAIS SÔ!
+                    if (index == devedoresFiltrados.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16.0),
+                        child: Center(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[700],
+                              side: const BorderSide(color: Color(0xFFCCCCCC)),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            ),
+                            icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                            label: const Text('Carregar próximos 10 clientes sô', style: TextStyle(fontWeight: FontWeight.bold)),
+                            onPressed: () {
+                              setState(() {
+                                _limiteAtual += 10; // 🔥 Puxa mais 10 em tempo real!
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    }
+
+                    final cliente = ClienteFiadoModel.fromFirestore(devedoresFiltrados[index]);
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -231,10 +328,9 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[200] ?? Colors.grey),
+                        side: const BorderSide(color: Color(0xFFEEEEEE)),
                       ),
                       child: ListTile(
-                        // Ajusta os espaçamentos internos se for celular sô!
                         contentPadding: EdgeInsets.symmetric(horizontal: ehCelular ? 16 : 24, vertical: ehCelular ? 4 : 8),
                         leading: CircleAvatar(
                           backgroundColor: const Color(0xFFE65100).withOpacity(0.1),
@@ -247,9 +343,12 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           cliente.nome,
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: ehCelular ? 15 : 16),
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis, // Corta o nome com '...' se for gigante sô
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Text(cliente.telefone.isEmpty ? "Sem telefone" : cliente.telefone, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                        subtitle: Text(
+                          cliente.telefone.isEmpty ? "Sem telefone" : FormatarTelefone.formatarTelefone(cliente.telefone), // 🔥 Adicionado a função aqui!
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -270,7 +369,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                         ),
                         onTap: () {
                           setState(() {
-                            _clienteSelecionado = cliente; // Abre o extrato sô!
+                            _clienteSelecionado = cliente;
                           });
                         },
                       ),
@@ -287,11 +386,12 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
 
   // 🟠 TELA 2: EXTRATO DETALHADO CORRIGIDO E RESPONSIVO SÔ!
   Widget _construirExtratoCliente(bool ehCelular) {
+    if (_clienteSelecionado == null) return const SizedBox.shrink(); // Vacina aplicada sô!
     final cliente = _clienteSelecionado!;
 
     return Padding(
       key: const ValueKey('extrato_cliente'),
-      padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0), // Margem menor no celular sô
+      padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -306,19 +406,17 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 🚨 CABEÇALHO RESPONSIVO: Se for celular, vira Column sô!
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Color(0xFFEEEEEE)),
+              border: Border.all(color: const Color(0xFFEEEEEE)),
             ),
             child: ehCelular
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Dados do Cliente
                       Row(
                         children: [
                           CircleAvatar(
@@ -335,21 +433,16 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(cliente.nome, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                Text('📞 ${cliente.telefone}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                Text(
+                                  cliente.telefone.isEmpty ? 'Sem telefone' : '📞 ${FormatarTelefone.formatarTelefone(cliente.telefone)}', // 🔥 Adicionado aqui!
+                                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            icon: const Icon(Icons.whatshot_outlined, color: Colors.green, size: 20),
-                            label: Text('Enviar Saldo Geral'),
-                            onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: false), // 🔥 Saldo Geral!
                           ),
                         ],
                       ),
                       const Divider(height: 24),
-
-                      // 2. Mostrador do Saldo Devedor
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -361,8 +454,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      // 3. Botão Lançar Fiado ocupando a largura toda no celular sô!
                       SizedBox(
                         width: double.infinity,
                         height: 48,
@@ -379,10 +470,21 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           onPressed: () => _abrirModalLancarFiado(cliente),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: AlignmentGeometry.bottomRight,
+                        child: TextButton.icon(
+                          icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Colors.green), // 🔥 ÍCONE CORRIGIDO SÔ!
+                          label: Text(
+                            'Enviar Saldo Geral',
+                            style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: false),
+                        ),
+                      ),
                     ],
                   )
                 : Row(
-                    // 🖥️ Layout Web Normal (Lado a Lado sô)
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
@@ -401,7 +503,11 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                             children: [
                               Text(cliente.nome, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 4),
-                              Text('WhatsApp: ${cliente.telefone}', style: const TextStyle(color: Colors.grey)),
+
+                              Text(
+                                cliente.telefone.isEmpty ? 'Sem telefone' : 'WhatsApp: ${FormatarTelefone.formatarTelefone(cliente.telefone)}', // 🔥 Adicionado aqui!
+                                style: const TextStyle(color: Colors.grey),
+                              ),
                             ],
                           ),
                         ],
@@ -427,6 +533,14 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                             'R\$ ${cliente.saldoDevedor.toStringAsFixed(2)}',
                             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.redAccent),
                           ),
+                          TextButton.icon(
+                            icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 22, color: Colors.green), // 🔥 ÍCONE CORRIGIDO SÔ!
+                            label: Text(
+                              'Enviar Saldo Geral',
+                              style: TextStyle(color: Colors.green, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: false),
+                          ),
                         ],
                       ),
                     ],
@@ -437,7 +551,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
           const Text('Notas Pendentes e Compras:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
 
-          // 📡 Lista de contas pendentes/parciais sô!
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestore
@@ -536,14 +649,12 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
             ),
           ),
 
-          // 💰 BARRA INFERIOR DE ABATIMENTO DA CONTA SÔ!
           if (_dividasSelecionadasIds.isNotEmpty) _construirBarraAbatimento(ehCelular),
         ],
       ),
     );
   }
 
-  // 🔥 AJUSTADO: Passando a responsividade para a barra inferior de pagamento também!
   Widget _construirBarraAbatimento(bool ehCelular) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -565,93 +676,144 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                   decoration: const InputDecoration(labelText: 'Valor Pago', prefixText: 'R\$ ', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    onPressed: _processandoAbatimento ? null : () => _confirmarEProcessarAbatimento(),
-                    child: _processandoAbatimento
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Confirmar Abatimento',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
                 Row(
-                  // Layout Web
                   children: [
                     Expanded(
-                      child: Text('${_dividasSelecionadasIds.length} notas selecionadas para abater sô!', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    ),
-                    SizedBox(
-                      width: 200,
-                      child: TextField(
-                        controller: _abatimentoController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Valor Pago pelo Cliente', prefixText: 'R\$ ', border: OutlineInputBorder()),
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green,
+                          side: const BorderSide(color: Colors.green),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        icon: FaIcon(FontAwesomeIcons.whatsapp, size: 16), // 🔥 ÍCONE CORRIGIDO SÔ!
+                        label: const Text('Cobrar Zap', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: true),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20)),
-                      onPressed: _processandoAbatimento ? null : () => _confirmarEProcessarAbatimento(),
-                      child: _processandoAbatimento
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Confirmar Abatimento',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 12)),
+                        onPressed: _processandoAbatimento ? null : () => _confirmarEProcessarAbatimento(),
+                        child: _processandoAbatimento
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text(
+                                'Abater',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                      ),
                     ),
                   ],
                 ),
-                // 💰 Dentro do _construirBarraAbatimento (Tanto Web quanto Mobile), coloque do lado do botão de Abater:
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Text('${_dividasSelecionadasIds.length} notas selecionadas para abater sô!', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
                     side: const BorderSide(color: Colors.green),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                   ),
-                  icon: const Icon(Icons.whatshot_outlined),
+                  icon: const Icon(Icons.send_rounded), // 🔥 ÍCONE CORRIGIDO SÔ!
                   label: const Text('Enviar cobrança no Zap', style: TextStyle(fontWeight: FontWeight.bold)),
-                  onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: true), // 🔥 Apenas as selecionadas sô!
+                  onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: true),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 200,
+                  child: TextField(
+                    controller: _abatimentoController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Valor Pago pelo Cliente', prefixText: 'R\$ ', border: OutlineInputBorder()),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20)),
+                  onPressed: _processandoAbatimento ? null : () => _confirmarEProcessarAbatimento(),
+                  child: _processandoAbatimento
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Confirmar Abatimento',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ],
             ),
     );
   }
 
-  // =========================================================================
-  // 💾 BACKEND LOCAL: MÉTODOS DE CADASTRO E ABATIMENTO SÔ
-  // =========================================================================
   void _abrirModalNovoCliente() {
     final nomeCtrl = TextEditingController();
     final foneCtrl = TextEditingController();
+    final enderecoCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cadastrar Novo Cliente no Fiado 👤'),
+        title: const Text('Cadastrar Novo Cliente 👤', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nomeCtrl,
-              decoration: const InputDecoration(labelText: 'Nome Completo do Cliente sô'),
+              maxLength: 80,
+              decoration: const InputDecoration(labelText: 'Nome completo', counterText: ''),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: foneCtrl,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Telefone/WhatsApp', hintText: '31988887777'),
+              // 🔥 ADICIONADO: Limita a digitação para o tamanho do celular com máscara sô!
+              maxLength: 15,
+              decoration: const InputDecoration(
+                labelText: 'Telefone/WhatsApp',
+                hintText: '(31) 98888-7777', // Hint mais amigável sô!
+                counterText: '', // Esconde o contador de caracteres para o layout ficar limpo
+              ),
+              // 🛠️ A MÁGICA DA FORMATAÇÃO EM TEMPO REAL SÔ:
+              inputFormatters: [
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  // 1. Remove tudo o que não for número sô
+                  String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+                  // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
+                  if (newValue.text.length < oldValue.text.length) {
+                    return newValue;
+                  }
+
+                  String textoFormatado = "";
+
+                  // 2. Monta a máscara certinha sem espaços duplicados sô!
+                  if (texto.length > 0) {
+                    textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
+                  }
+                  if (texto.length > 2) {
+                    // Juntamos o fecha parêntese com o espaço padrão sô: ") "
+                    textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
+                  }
+                  if (texto.length > 7) {
+                    // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
+                    textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
+                  }
+
+                  return TextEditingValue(
+                    text: textoFormatado,
+                    selection: TextSelection.collapsed(offset: textoFormatado.length),
+                  );
+                }),
+              ],
             ),
+            TextField(
+              controller: enderecoCtrl,
+              maxLength: 120,
+              decoration: const InputDecoration(labelText: 'Endereço', counterText: ''),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
         actions: [
@@ -661,7 +823,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
             onPressed: () async {
               if (nomeCtrl.text.trim().isEmpty) return;
 
-              // Cria o cliente no banco sô!
               await _firestore.collection('clientes_fiado').add({
                 'loja_id': widget.lojaId,
                 'nome': nomeCtrl.text.trim(),
@@ -679,7 +840,6 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
   }
 
   Future<void> _confirmarEProcessarAbatimento() async {
-    // 1. Valida o valor digitado sô
     final double? valorPagoOriginal = double.tryParse(_abatimentoController.text.replaceAll(',', '.'));
     if (valorPagoOriginal == null || valorPagoOriginal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Digite um valor válido para o pagamento sô! 💰'), backgroundColor: Colors.orange));
@@ -695,9 +855,8 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
       double dinheiroRestante = valorPagoOriginal;
       double totalAbatidoNoSaldoDoCliente = 0.0;
 
-      // 2. Busca os documentos reais das dívidas selecionadas para saber quanto cada uma deve sô!
       for (String dividaId in _dividasSelecionadasIds) {
-        if (dinheiroRestante <= 0) break; // Se o dinheiro que o cliente trouxe acabou, para o laço!
+        if (dinheiroRestante <= 0) break;
 
         final docRef = _firestore.collection('historico_fiado').doc(dividaId);
         final docSnap = await docRef.get();
@@ -706,13 +865,10 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
           final dados = docSnap.data() as Map<String, dynamic>;
           double valorRestanteNota = (dados['valor_restante'] ?? 0.0).toDouble();
 
-          // 🧠 A MÁGICA DO ABATIMENTO ITEM POR ITEM SÔ:
           if (dinheiroRestante >= valorRestanteNota) {
-            // CASO A: O dinheiro dá para pagar essa nota INTEIRA!
             dinheiroRestante -= valorRestanteNota;
             totalAbatidoNoSaldoDoCliente += valorRestanteNota;
 
-            // Cria o registro do picadinho/histórico interno da nota
             final novoPagamento = {'data_pagamento': Timestamp.now(), 'valor_pago': valorRestanteNota};
 
             batch.update(docRef, {
@@ -721,11 +877,10 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
               'pagamentos_parciais': FieldValue.arrayUnion([novoPagamento]),
             });
           } else {
-            // CASO B: O dinheiro só dá para pagar um PEDAÇO dessa nota (Abatimento Parcial!)
             double valorAbatidoParcial = dinheiroRestante;
             double novoValorRestanteNota = valorRestanteNota - valorAbatidoParcial;
             totalAbatidoNoSaldoDoCliente += valorAbatidoParcial;
-            dinheiroRestante = 0.0; // Dinheiro do cliente zerou sô!
+            dinheiroRestante = 0.0;
 
             final novoPagamento = {'data_pagamento': Timestamp.now(), 'valor_pago': valorAbatidoParcial};
 
@@ -738,18 +893,11 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
         }
       }
 
-      // 3. Atualiza a ficha principal do cliente subtraindo tudo o que foi abatido sô!
       final clienteRef = _firestore.collection('clientes_fiado').doc(_clienteSelecionado!.id);
-      batch.update(clienteRef, {
-        // Usamos o decremento negativo para abater o saldo real sô!
-        'saldo_devedor': FieldValue.increment(-totalAbatidoNoSaldoDoCliente),
-        'atualizado_em': FieldValue.serverTimestamp(),
-      });
+      batch.update(clienteRef, {'saldo_devedor': FieldValue.increment(-totalAbatidoNoSaldoDoCliente), 'atualizado_em': FieldValue.serverTimestamp()});
 
-      // 4. Envia todos os comandos pro Firebase de uma vez só!
       await batch.commit();
 
-      // 5. Recarrega os dados do cliente localmente para atualizar o cabeçalho na tela sô!
       final clienteAtualizadoSnap = await clienteRef.get();
 
       if (mounted) {
@@ -780,24 +928,19 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
       return;
     }
 
-    // 1. Limpa o número do telefone (deixa só números e enfia o DDI 55 do Brasil sô)
     String telefoneLimpo = cliente.telefone.replaceAll(RegExp(r'[^0-9]'), '');
     if (!telefoneLimpo.startsWith('55')) {
       telefoneLimpo = '55$telefoneLimpo';
     }
 
-    String mensagem = '';
+    String messaging = '';
 
     if (apenasSelecionadas) {
-      // =========================================================================
-      // MODO A: COBRANÇA DE ITENS SELECIONADOS SÔ!
-      // =========================================================================
       if (_dividasSelecionadasIds.isEmpty) return;
 
-      mensagem = 'Olá, *${cliente.nome}*! Passando para te enviar o detalhe das seguintes notas em aberto aqui no nosso estabelecimento:\n\n';
+      messaging = 'Olá, *${cliente.nome}*! Passando para te enviar o detalhe das seguintes notas em aberto aqui no nosso estabelecimento:\n\n';
       double totalSelecionado = 0.0;
 
-      // Buscamos os documentos direto na coleção do histórico (ou você pode puxar da tela sô!)
       for (String id in _dividasSelecionadasIds) {
         final doc = await _firestore.collection('historico_fiado').doc(id).get();
         if (doc.exists) {
@@ -806,25 +949,20 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
           double valor = (dados['valor_restante'] ?? 0.0).toDouble();
           totalSelecionado += valor;
 
-          mensagem += '📌 *$desc* - R\$ ${valor.toStringAsFixed(2)}\n';
+          messaging += '📌 *$desc* - R\$ ${valor.toStringAsFixed(2)}\n';
         }
       }
 
-      mensagem += '\n💰 *Subtotal das notas selecionadas: R\$ ${totalSelecionado.toStringAsFixed(2)}*';
-      mensagem += '\n\nQuando puder dar uma passadinha para acertar essas notas, eu agradeço demais sô! 👍';
+      messaging += '\n💰 *Subtotal das notas selecionadas: R\$ ${totalSelecionado.toStringAsFixed(2)}*';
+      messaging += '\n\nQuando puder dar uma passadinha para acertar essas notas, eu agradeço demais sô! 👍';
     } else {
-      // =========================================================================
-      // MODO B: SALDO GERAL DO CADERNINHO sô!
-      // =========================================================================
-      mensagem = 'Olá, *${cliente.nome}*!\n\nPassando para te lembrar do seu saldo atual na nossa *Caderneta de Fiado*.\n\n';
-      mensagem += '💵 O valor total acumulado é de: *R\$ ${cliente.saldoDevedor.toStringAsFixed(2)}*.\n\n';
-      mensagem += 'Se quiser o extrato detalhado de todas as compras, é só me avisar por aqui sô! Obrigado pela preferência! 🙏✨';
+      messaging = 'Olá, *${cliente.nome}*!\n\nPassando para te lembrar do seu saldo atual na nossa *Caderneta de Fiado*.\n\n';
+      messaging += '💵 O valor total acumulado é de: *R\$ ${cliente.saldoDevedor.toStringAsFixed(2)}*.\n\n';
+      messaging += 'Se quiser o extrato detalhado de todas as compras, é só me avisar por aqui sô! Obrigado pela preferência! 🙏✨';
     }
 
-    // 2. Converte o texto para o formato que a URL do navegador entende sô (Uri.encodeFull)
-    final Uri urlUri = Uri.parse('https://wa.me/$telefoneLimpo?text=${Uri.encodeFull(mensagem)}');
+    final Uri urlUri = Uri.parse('https://wa.me/$telefoneLimpo?text=${Uri.encodeFull(messaging)}');
 
-    // 3. Dispara o WhatsApp Web ou o App do Celular sô!
     try {
       if (await launchUrl(urlUri, mode: LaunchMode.externalApplication)) {
         print('WhatsApp aberto com sucesso sô!');
