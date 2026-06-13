@@ -13,19 +13,50 @@ class ProdutosScreen extends StatefulWidget {
 
 class _ProdutosScreenState extends State<ProdutosScreen> {
   final _firestore = FirebaseFirestore.instance;
-  int _limiteProdutos = 0;
-  int _produtosCadastrados = 0;
+  int _limiteProdutosPlano = 0;
+  int _produtosCadastradosTotal = 0;
+
+  // 🔍 CONTROLES DE FILTRO E PAGINAÇÃO SÔ!
+  String? _categoriaFiltroId; // Nulo significa "Todos os Produtos"
+  int _limiteProdutosExibidos = 10; // Começa exibindo 10 itens sô
+  bool _temMaisProdutos = true;
+
+  // 📡 Lista de categorias vindas do banco genérico
+  List<Map<String, dynamic>> _categoriasFiltroLista = [];
+  bool _carregandoCategorias = true;
 
   @override
   void initState() {
     super.initState();
     _buscarLimiteDeProdutos();
+    _carregarCategoriasGlobais(); // 🔥 Puxa o catálogo genérico para o topo sô!
+  }
+
+  /// 🛠️ Busca a lista genérica/global do Firebase para o Dropdown do topo sô!
+  Future<void> _carregarCategoriasGlobais() async {
+    try {
+      final snapshot = await _firestore.collection('categoria_produto').orderBy('nome').get();
+
+      final List<Map<String, dynamic>> carregadas = snapshot.docs.map((doc) {
+        return {'id': doc.id, 'nome': doc['nome'].toString()};
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoriasFiltroLista = carregadas;
+          _carregandoCategorias = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar categorias no filtro sô: $e');
+      if (mounted) setState(() => _carregandoCategorias = false);
+    }
   }
 
   // Altera a disponibilidade do produto direto no clique do Switch
   Future<void> _alternarDisponibilidade(String produtoId, bool statusAtual) async {
     try {
-      await FirebaseFirestore.instance.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').doc(produtoId).update({'disponivel': !statusAtual});
+      await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').doc(produtoId).update({'disponivel': !statusAtual});
     } catch (e) {
       print('Erro ao atualizar produto, sô: $e');
     }
@@ -49,7 +80,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Sua loja já atingiu o limite máximo de produtos cadastrados em seu plano atual.', style: const TextStyle(fontSize: 14, color: Colors.black87)),
+              const Text('Sua loja já atingiu o limite máximo de produtos cadastrados em seu plano atual.', style: TextStyle(fontSize: 14, color: Colors.black87)),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -61,7 +92,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                 child: const Row(
                   children: [
                     Icon(Icons.workspace_premium, color: Colors.orange),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Faça upgrade em seu plano agora mesmo!',
@@ -74,7 +105,6 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
             ],
           ),
           actions: [
-            // BOTÃO 1: LEVA DIRETO PARA A TELA DE PLANOS DO SEU PAINEL
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE65100),
@@ -82,10 +112,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
-                Navigator.pop(context); // Fecha a modal
-
-                // MUDANÇA DE ABA: Se a sua DashboardScreen gerencia as abas,
-                // você pode disparar um callback ou avisar o lojista para ir até lá.
+                Navigator.pop(context);
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(const SnackBar(content: Text('Clique na aba "Planos de Assinatura" no menu lateral para escolher seu novo plano! 😉'), backgroundColor: Colors.blue));
@@ -100,7 +127,6 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
 
   Future<void> _buscarLimiteDeProdutos() async {
     try {
-      // 1. Busca o documento do estabelecimento para pegar o limite do plano
       final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
 
       int limiteRecuperado = 0;
@@ -108,17 +134,13 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
         limiteRecuperado = docLoja.data()?['limite_produtos'] ?? 0;
       }
 
-      // 2. 🔥 CONTADOR OTIMIZADO: Conta quantos produtos existem na subcollection daquela loja
-      // O .count().get() roda direto no servidor do Firebase e devolve só o número total
       final snapshotContagem = await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').count().get();
-
       int totalProdutos = snapshotContagem.count ?? 0;
 
-      // 3. Atualiza o estado da tela de uma vez só se a tela ainda estiver aberta
       if (mounted) {
         setState(() {
-          _limiteProdutos = limiteRecuperado;
-          _produtosCadastrados = totalProdutos;
+          _limiteProdutosPlano = limiteRecuperado;
+          _produtosCadastradosTotal = totalProdutos;
         });
       }
     } catch (e) {
@@ -135,19 +157,16 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Linha de Cabeçalho
+          // Linha de Cabeçalho Responsiva
           LayoutBuilder(
             builder: (context, constraints) {
-              // 📱 Detecta se o espaço disponível é menor que um celular (800px)
               final bool ehCelular = constraints.maxWidth < 800;
 
-              // 📦 Conteúdo dos Textos (Título + Subtítulo)
               final Widget blocoTextos = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Gerenciador de Cardápio / Catálogo',
-                    // Reduz um pouco a fonte no celular para não esmagar a tela sô!
                     style: TextStyle(fontSize: ehCelular ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   const SizedBox(height: 4),
@@ -155,9 +174,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                 ],
               );
 
-              // 🔘 Conteúdo do Botão
               final Widget botaoNovo = SizedBox(
-                // No celular o botão ganha largura total (infinity); no PC ele fica do tamanho natural
                 width: ehCelular ? double.infinity : null,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
@@ -170,7 +187,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                   icon: const Icon(Icons.add, size: 20),
                   label: const Text('Novo Produto', style: TextStyle(fontWeight: FontWeight.bold)),
                   onPressed: () {
-                    if (_produtosCadastrados >= _limiteProdutos) {
+                    if (_produtosCadastradosTotal >= _limiteProdutosPlano) {
                       _mostrarAlertaLimiteExcedido();
                       return;
                     }
@@ -178,26 +195,18 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                       context: context,
                       barrierDismissible: false,
                       builder: (context) => CadastroProdutoModal(lojaId: widget.lojaId!),
-                    );
+                    ).then((_) => _buscarLimiteDeProdutos()); // Recarrega contagem ao fechar sô!
                   },
                 ),
               );
 
-              // 🔀 A MÁGICA: Se for celular, renderiza um embaixo do outro. Se for PC, joga lado a lado!
               if (ehCelular) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    blocoTextos,
-                    const SizedBox(height: 16), // Espaço entre o título e o botão
-                    botaoNovo,
-                  ],
-                );
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [blocoTextos, const SizedBox(height: 16), botaoNovo]);
               } else {
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: blocoTextos), // O Expanded impede o texto longo de empurrar o botão pra fora do PC
+                    Expanded(child: blocoTextos),
                     const SizedBox(width: 16),
                     botaoNovo,
                   ],
@@ -205,61 +214,160 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
               }
             },
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          // TABELA DE PRODUTOS DA SUBCOLEÇÃO
+          // 🔍 NOVO SELETOR DE CATEGORIA DO TOPO SÔ!
+          _carregandoCategorias
+              ? const LinearProgressIndicator(color: Color(0xFFE65100))
+              : Container(
+                  width: 300, // Largura elegante fixada para a caixa sô
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFEEEEEE)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _categoriaFiltroId,
+                      hint: const Text('Filtrar por Categoria', style: TextStyle(fontSize: 14)),
+                      isExpanded: true,
+                      icon: const Icon(Icons.filter_list_rounded, color: Color(0xFFE65100)),
+                      items: [
+                        // Primeira opção fixa para limpar o filtro sô!
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('👀 Mostrar Todas as Seções', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        ..._categoriasFiltroLista.map((cat) {
+                          return DropdownMenuItem<String>(value: cat['id'], child: Text(cat['nome']));
+                        }),
+                      ],
+                      onChanged: (idSelecionado) {
+                        setState(() {
+                          _categoriaFiltroId = idSelecionado;
+                          _limiteProdutosExibidos = 10; // Reseta a paginação ao trocar de categoria sô!
+                        });
+                      },
+                    ),
+                  ),
+                ),
+
+          const SizedBox(height: 24),
+
+          // TABELA DE PRODUTOS DA SUBCOLEÇÃO COM FILTRO E PAGINAÇÃO DINÂMICA
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').snapshots(),
+              stream: () {
+                // 🧠 MONTAGEM DA QUERY INTELIGENTE SÔ:
+                Query queryBase = _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').orderBy('nome'); // Ordenação base sô
+
+                // Se tiver categoria selecionada, injeta a cláusula WHERE apontando pro ID genérico sô!
+                if (_categoriaFiltroId != null) {
+                  queryBase = queryBase.where('categoria_id', isEqualTo: _categoriaFiltroId);
+                }
+
+                // Aplica o limite da paginação dinâmica de 10 em 10 sô!
+                return queryBase.limit(_limiteProdutosExibidos).snapshots();
+              }(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return const Center(child: Text('Erro ao carregar os dados.'));
+                if (snapshot.hasError) {
+                  print(snapshot.error);
+                  return const Center(child: Text('Erro ao carregar os dados.'));
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
                 }
 
-                final produtos = snapshot.data?.docs ?? [];
+                final produtosDocs = snapshot.data?.docs ?? [];
 
-                if (produtos.isEmpty) {
+                if (produtosDocs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[400]),
                         const SizedBox(height: 16),
-                        const Text(
-                          'Nenhum produto cadastrado ainda, uai!',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                        Text(
+                          _categoriaFiltroId == null ? 'Nenhum produto cadastrado ainda, uai!' : 'Nenhum produto nesta seção sô! 🌾',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
                         ),
                       ],
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  itemCount: produtos.length,
+                // Se a quantia que veio do banco bate com o limite atual, indica que tem mais páginas na fila sô!
+                _temMaisProdutos = produtosDocs.length == _limiteProdutosExibidos;
 
+                return ListView.builder(
+                  itemCount: produtosDocs.length + (_temMaisProdutos ? 1 : 0), // +1 é a vaga do botão carregar sô!
                   itemBuilder: (context, index) {
-                    final item = produtos[index];
+                    // ⏭️ LINHA DO BOTÃO "VER MAIS PRODUTOS" SÔ!
+                    if (index == produtosDocs.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20.0),
+                        child: Center(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[700],
+                              side: const BorderSide(color: Color(0xFFCCCCCC)),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            ),
+                            icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                            label: const Text('Carregar próximos 10 produtos sô', style: TextStyle(fontWeight: FontWeight.bold)),
+                            onPressed: () {
+                              setState(() {
+                                _limiteProdutosExibidos += 10; // Puxa mais 10 em tempo real sô!
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    }
+
+                    final item = produtosDocs[index];
                     final dados = item.data() as Map<String, dynamic>;
 
                     String nome = dados['nome'] ?? 'Sem nome';
                     double preco = (dados['preco'] ?? 0.0).toDouble();
                     bool disponivel = dados['disponivel'] ?? true;
                     String descricao = dados['descricao'] ?? '';
+                    String categoriaProd = dados['categoria_produto'] ?? 'Outros';
 
                     return Card(
                       color: Colors.white,
                       elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: Color(0xFFEEEEEE)),
+                      ),
+                      margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         title: Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 4.0),
-                          child: Text(
-                            descricao,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Selo bonitinho da seção do cardápio sô!
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(color: const Color(0xFFE65100).withOpacity(0.06), borderRadius: BorderRadius.circular(4)),
+                                child: Text(
+                                  categoriaProd.toUpperCase(),
+                                  style: const TextStyle(color: Color(0xFFE65100), fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                descricao,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                              ),
+                            ],
                           ),
                         ),
                         trailing: SizedBox(
@@ -280,7 +388,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                       context: context,
                                       barrierDismissible: false,
                                       builder: (context) => CadastroProdutoModal(lojaId: widget.lojaId!, produtoExistente: item.data() as Map<String, dynamic>?, idProduto: item.id),
-                                    );
+                                    ).then((_) => _buscarLimiteDeProdutos());
                                   },
                                 ),
                               ),

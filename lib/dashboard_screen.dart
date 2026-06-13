@@ -111,7 +111,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _lojaIdReal = docLoja.id;
 
         _statusPagamentoGeral = dadosLoja['status_pagamento'] ?? 'pendente';
-        final Timestamp? timestampVencimento = dadosLoja['proximo_vencimento'];
+        // 1. Pegamos o dado bruto do mapa sem tipar ainda sô
+        final dynamic dadoVencimento = dadosLoja['proximo_vencimento'];
+
+        Timestamp? timestampVencimento;
+
+        // 2. Fazemos a checagem mágica para blindar o app:
+        if (dadoVencimento is Timestamp) {
+          // Se já for Timestamp, perfeito sô!
+          timestampVencimento = dadoVencimento;
+        } else if (dadoVencimento is String) {
+          // 🛡️ Se for a String ISO, convertemos para DateTime e depois para Timestamp!
+          final dateTimeConvertido = DateTime.tryParse(dadoVencimento);
+          if (dateTimeConvertido != null) {
+            timestampVencimento = Timestamp.fromDate(dateTimeConvertido);
+          }
+        }
 
         if (_statusPagamentoGeral == 'isento') {
           _mostrarBannerPeriodoDeGraca = false;

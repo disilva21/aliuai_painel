@@ -23,19 +23,22 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
   final _descricaoController = TextEditingController();
 
   final _storage = FirebaseStorage.instance;
+  final _firestore = FirebaseFirestore.instance;
 
   bool _subindoFoto = false;
   String _fotoUrl = '';
 
   bool _salvando = false;
-  String _categoriaSelecionada = 'Lanches'; // Valor padrão inicial
+  String? _categoriaSelecionada; // 🔥 Armazena o ID da categoria global selecionada!
 
-  // Lista de categorias de produtos para o lojista organizar o cardápio dele
-  final List<String> _categoriasProdutos = ['Lanches', 'Bebidas', 'Porções', 'Sobremesas', 'Moda Masculina', 'Moda Feminina', 'Outros'];
+  // 📡 Lista dinâmica das categorias globais do banco sô
+  List<Map<String, dynamic>> _categoriasGlobais = [];
+  bool _carregandoCategorias = true;
 
   @override
   void initState() {
     super.initState();
+    _carregarCategoriasGlobais(); // 🔥 Puxa a tabela genérica do banco sô!
 
     // Se um produto existente for passado, pré-preenche os campos para edição
     if (widget.produtoExistente != null) {
@@ -43,7 +46,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
       _precoController.text = widget.produtoExistente!['preco'].toString();
       _descricaoController.text = widget.produtoExistente!['descricao'] ?? '';
       _fotoUrl = widget.produtoExistente!['foto_url'] ?? '';
-      _categoriaSelecionada = widget.produtoExistente!['categoria_produto'] ?? 'Lanches';
+      _categoriaSelecionada = widget.produtoExistente!['categoria_id']; // 🔥 Resgata a ref/id da categoria salva
     }
   }
 
@@ -55,16 +58,37 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     super.dispose();
   }
 
-  /// ✨ MÉTODO REFATORADO: Upload de foto otimizado para usar widget.lojaId
-  Future<void> _escolherEEnviarFoto() async {
-    // 1. Abre a janela nativa para selecionar o arquivo
-    FilePickerResult? resultado = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      withData: true, // Garante os bytes na Web
-    );
+  /// 🛠️ MÉTODO CORRIGIDO: Busca a lista genérica/global do Firebase para todas as lojas sô!
+  Future<void> _carregarCategoriasGlobais() async {
+    try {
+      // Busca a coleção geral sem filtros de lojaId sô!
+      final snapshot = await _firestore.collection('categoria_produto').orderBy('nome').get();
 
-    // 2. Valida se o arquivo e seus bytes estão prontos
+      final List<Map<String, dynamic>> carregadas = snapshot.docs.map((doc) {
+        return {'id': doc.id, 'nome': doc['nome'].toString()};
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categoriasGlobais = carregadas;
+          _carregandoCategorias = false;
+
+          // Se não for edição e tiver dados no banco, pré-seleciona a primeira da lista sô
+          if (_categoriaSelecionada == null && _categoriasGlobais.isNotEmpty) {
+            _categoriaSelecionada = _categoriasGlobais.first['id'];
+          }
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar categorias genéricas sô: $e');
+      if (mounted) setState(() => _carregandoCategorias = false);
+    }
+  }
+
+  /// ✨ MÉTODO OPTIMIZADO: Upload de foto otimizado para usar widget.lojaId
+  Future<void> _escolherEEnviarFoto() async {
+    FilePickerResult? resultado = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
+
     if (resultado != null && resultado.files.first.bytes != null) {
       setState(() => _subindoFoto = true);
 
@@ -72,21 +96,14 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         final arquivoBytes = resultado.files.first.bytes!;
         final nomeArquivo = resultado.files.first.name;
         final extensao = nomeArquivo.split('.').last;
-
         final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-
-        // 3. Define a referência usando o ID limpo da loja
 
         final ref = _storage.ref().child('produtos/${widget.lojaId}_$timestamp.$extensao');
 
-        // 4. Executa o upload em Bytes para Flutter Web
         UploadTask uploadTask = ref.putData(arquivoBytes, SettableMetadata(contentType: 'image/$extensao'));
 
         TaskSnapshot snapshot = await uploadTask;
         String urlPublica = await snapshot.ref.getDownloadURL();
-
-        // // 5. Atualiza o banco com o novo link da foto
-        // await _firestore.collection('estabelecimentos').doc(widget.lojaId).update({'logo_url': urlPublica});
 
         if (mounted) {
           setState(() {
@@ -94,7 +111,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
             _subindoFoto = false;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto atualizada com sucesso! 📸'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto updated! 📸'), backgroundColor: Colors.green));
         }
       } catch (e) {
         if (mounted) {
@@ -106,7 +123,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
   }
 
   Future<void> _salvarProduto() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _categoriaSelecionada == null) return;
 
     setState(() => _salvando = true);
 
@@ -114,52 +131,43 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     final precoDouble = double.tryParse(precoTexto) ?? 0.0;
 
     try {
-      final docLoja = await FirebaseFirestore.instance.collection('estabelecimentos').doc(widget.lojaId).get();
+      // Encontra o nome da categoria selecionada para salvar um espelho textual se precisar sô
+      final catObjeto = _categoriasGlobais.firstWhere((cat) => cat['id'] == _categoriaSelecionada);
+      final String nomeCategoria = catObjeto['nome'];
 
+      final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
       String cidadeIdDaLoja = '';
 
       if (docLoja.exists) {
         final dadosLoja = docLoja.data();
-
-        cidadeIdDaLoja = dadosLoja?['cidade_id'] ?? ''; // 🔥 Puxa o ID salvo no perfil da loja
+        cidadeIdDaLoja = dadosLoja?['cidade_id'] ?? '';
       }
 
+      final produtoData = {
+        'nome': _nomeController.text.trim(),
+        'preco': precoDouble,
+        'descricao': _descricaoController.text.trim(),
+        'categoria_id': _categoriaSelecionada, // 🔥 Grava a REF/ID da categoria genérica sô!
+        'categoria_produto': nomeCategoria, // Mantém a string para o app do cliente ler rápido sô
+        'foto_url': _fotoUrl,
+      };
+
       if (widget.produtoExistente != null) {
-        await FirebaseFirestore.instance
-            .collection('estabelecimentos')
-            .doc(widget.lojaId) // ID da loja logada
-            .collection('produtos') // Subcoleção de produtos daquela loja
-            .doc(widget.idProduto) // ID do produto existente
-            .update({
-              'nome': _nomeController.text.trim(),
-              'preco': precoDouble,
-              'descricao': _descricaoController.text.trim(),
-              'categoria_produto': _categoriaSelecionada,
-              'foto_url': _fotoUrl,
-              'alterado_em': FieldValue.serverTimestamp(),
-            });
+        await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').doc(widget.idProduto).update({...produtoData, 'alterado_em': FieldValue.serverTimestamp()});
       } else {
-        await FirebaseFirestore.instance
-            .collection('estabelecimentos')
-            .doc(widget.lojaId) // ID da loja logada
-            .collection('produtos') // Subcoleção de produtos daquela loja
-            .add({
-              'nome': _nomeController.text.trim(),
-              'preco': precoDouble,
-              'descricao': _descricaoController.text.trim(),
-              'categoria_produto': _categoriaSelecionada,
-              'disponivel': true,
-              'foto_url': _fotoUrl,
-              'criado_em': FieldValue.serverTimestamp(),
-              'estabelecimento_id': widget.lojaId,
-              'promocao': false,
-              'cidade_id': cidadeIdDaLoja,
-            });
+        await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').add({
+          ...produtoData,
+          'disponivel': true,
+          'criado_em': FieldValue.serverTimestamp(),
+          'estabelecimento_id': widget.lojaId,
+          'promocao': false,
+          'cidade_id': cidadeIdDaLoja,
+        });
       }
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Produto cadastrado com sucesso! 🎉'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Produto salvo com sucesso! 🎉'), backgroundColor: Colors.green));
       }
     } catch (e) {
       print('Erro ao salvar produto: $e');
@@ -178,146 +186,154 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.add_box, color: Color(0xFFE65100)),
-              SizedBox(width: 8),
-              Text('Cadastrar Novo Produto', style: TextStyle(fontWeight: FontWeight.bold)),
+              Icon(Icons.add_box, color: const Color(0xFFE65100)),
+              const SizedBox(width: 8),
+              Text(widget.produtoExistente != null ? 'Editar Produto' : 'Cadastrar Novo Produto', style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ],
       ),
       content: SizedBox(
-        width: 500, // Largura ideal fixada para caixas Web
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // NOME DO PRODUTO
-                TextFormField(
-                  controller: _nomeController,
-                  decoration: InputDecoration(
-                    labelText: 'Nome do Produto',
-                    hintText: 'Ex: X-Burguer Artesanal, Blusa Polo, Gás P13...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Digite o nome do produto.' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // LINHA DUPLA: PREÇO E CATEGORIA DO PRODUTO
-                Row(
-                  children: [
-                    // CAMPO PREÇO
-                    Expanded(
-                      flex: 4,
-                      child: TextFormField(
-                        controller: _precoController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        width: 500,
+        child: _carregandoCategorias
+            ? const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator(color: Color(0xFFE65100))),
+              )
+            : _categoriasGlobais.isEmpty
+            ? const SizedBox(height: 100, child: Center(child: Text('Nenhuma categoria genérica cadastrada no painel master sô! 🌐')))
+            : SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // NOME DO PRODUTO
+                      TextFormField(
+                        controller: _nomeController,
                         decoration: InputDecoration(
-                          labelText: 'Preço de Venda (R\$)',
-                          hintText: '0,00',
-                          prefixText: 'R\$ ',
+                          labelText: 'Nome do Produto',
+                          hintText: 'Ex: X-Burguer Artesanal, Blusa Polo, Gás P13...',
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Digite o preço.';
-                          final formatado = val.replaceAll(',', '.');
-                          if (double.tryParse(formatado) == null) return 'Valor inválido.';
-                          return null;
-                        },
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Digite o nome do produto.' : null,
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    // SELETOR DE SEÇÃO DO CARDÁPIO
-                    Expanded(
-                      flex: 6,
-                      child: DropdownButtonFormField<String>(
-                        value: _categoriaSelecionada,
+                      const SizedBox(height: 16),
+
+                      // LINHA DUPLA: PREÇO E CATEGORIA DO PRODUTO
+                      Row(
+                        children: [
+                          // CAMPO PREÇO
+                          Expanded(
+                            flex: 4,
+                            child: TextFormField(
+                              controller: _precoController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                labelText: 'Preço de Venda',
+                                hintText: '0,00',
+                                prefixText: 'R\$ ',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) return 'Digite o preço.';
+                                final formatado = val.replaceAll(',', '.');
+                                if (double.tryParse(formatado) == null) return 'Valor inválido.';
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+
+                          // SELETOR DE SEÇÃO (MAPEANDO O ID COMO VALOR SÔ!)
+                          Expanded(
+                            flex: 7,
+                            child: DropdownButtonFormField<String>(
+                              value: _categoriaSelecionada,
+                              decoration: InputDecoration(
+                                labelText: 'Seção / Categoria',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              items: _categoriasGlobais.map((cat) {
+                                return DropdownMenuItem<String>(
+                                  value: cat['id'], // 🔥 O valor do item é o ID do documento genérico
+                                  child: Text(cat['nome']), // O texto é o nome bonito sô
+                                );
+                              }).toList(),
+                              onChanged: (val) => setState(() => _categoriaSelecionada = val),
+                              validator: (val) => val == null ? 'Selecione uma categoria.' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // DESCRIÇÃO DO PRODUTO
+                      TextFormField(
+                        controller: _descricaoController,
+                        maxLines: 3,
                         decoration: InputDecoration(
-                          labelText: 'Seção / Categoria',
+                          labelText: 'Descrição / Detalhes',
+                          hintText: 'Ex: Descreva o que vem no prato...',
+                          alignLabelWithHint: true,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        items: _categoriasProdutos.map((cat) {
-                          return DropdownMenuItem<String>(value: cat, child: Text(cat));
-                        }).toList(),
-                        onChanged: (val) => setState(() => _categoriaSelecionada = val!),
+                        validator: (val) => val == null || val.trim().isEmpty ? 'Insira uma descrição.' : null,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // DESCRIÇÃO DO PRODUTO
-                TextFormField(
-                  controller: _descricaoController,
-                  maxLines: 3, // Deixa a caixa maior para caber os ingredientes/detalhes
-                  decoration: InputDecoration(
-                    labelText: 'Descrição / Detalhes',
-                    hintText: 'Ex: Descreva o que vem no prato ou os tamanhos e cores disponíveis...',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(height: 24),
+                      Column(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.grey[300]!, width: 2),
+                            ),
+                            child: _subindoFoto
+                                ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)))
+                                : _fotoUrl.isNotEmpty
+                                ? Builder(
+                                    builder: (context) {
+                                      final String viewId = 'logo-${_fotoUrl.hashCode}';
+                                      ui_web.platformViewRegistry.registerViewFactory(
+                                        viewId,
+                                        (int viewId) => html.ImageElement()
+                                          ..src = _fotoUrl
+                                          ..style.width = '100%'
+                                          ..style.height = '100%'
+                                          ..style.objectFit = 'cover',
+                                      );
+                                      return HtmlElementView(viewType: viewId);
+                                    },
+                                  )
+                                : Icon(Icons.add_business, size: 45, color: Colors.grey[400]),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(foregroundColor: const Color(0xFFE65100)),
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: const Text('Foto do Produto (PNG/JPG)', style: TextStyle(fontWeight: FontWeight.bold)),
+                            onPressed: _subindoFoto ? null : _escolherEEnviarFoto,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Insira uma descrição para seu cliente ler.' : null,
                 ),
-                SizedBox(height: 24),
-                Column(
-                  children: [
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey[300]!, width: 2),
-                      ),
-                      child: Container(
-                        child: _subindoFoto
-                            ? const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)))
-                            : _fotoUrl.isNotEmpty
-                            ? Builder(
-                                builder: (context) {
-                                  final String viewId = 'logo-${_fotoUrl.hashCode}';
-                                  ui_web.platformViewRegistry.registerViewFactory(
-                                    viewId,
-                                    (int viewId) => html.ImageElement()
-                                      ..src = _fotoUrl
-                                      ..style.width = '100%'
-                                      ..style.height = '100%'
-                                      ..style.objectFit = 'cover',
-                                  );
-                                  return HtmlElementView(viewType: viewId);
-                                },
-                              )
-                            : Icon(Icons.add_business, size: 45, color: Colors.grey[400]),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton.icon(
-                      style: TextButton.styleFrom(foregroundColor: const Color(0xFFE65100)),
-                      icon: const Icon(Icons.cloud_upload_outlined),
-                      label: const Text('Foto do Produto (PNG/JPG)', style: TextStyle(fontWeight: FontWeight.bold)),
-                      onPressed: _subindoFoto ? null : _escolherEEnviarFoto,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
       actionsPadding: const EdgeInsets.all(24),
       actions: [
-        // BOTÃO CANCELAR
         TextButton(
           onPressed: _salvando ? null : () => Navigator.pop(context),
           child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
         ),
-        // BOTÃO SALVAR
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFE65100),
