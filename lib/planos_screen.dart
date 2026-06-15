@@ -280,6 +280,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
               stream: _firestore.collection('planos').where('ativo', isEqualTo: true).orderBy('ordem').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
+                  // print(snapshot.error);
                   return Center(child: Text('Erro ao carregar planos do banco: ${snapshot.error}'));
                 }
 

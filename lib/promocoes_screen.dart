@@ -25,7 +25,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
     final doc = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
     if (doc.exists && mounted) {
       setState(() {
-        _limitePromocoes = doc.data()?['limite_promocoes'] ?? 0; // Ajustado para o padrão do seu banco
+        _limitePromocoes = doc.data()?['limite_promocoes'] ?? 0;
       });
     }
   }
@@ -73,7 +73,6 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
             ],
           ),
           actions: [
-            // BOTÃO 1: LEVA DIRETO PARA A TELA DE PLANOS DO SEU PAINEL
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE65100),
@@ -81,10 +80,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
-                Navigator.pop(context); // Fecha a modal
-
-                // MUDANÇA DE ABA: Se a sua DashboardScreen gerencia as abas,
-                // você pode disparar um callback ou avisar o lojista para ir até lá.
+                Navigator.pop(context);
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(const SnackBar(content: Text('Clique na aba "Planos de Assinatura" no menu lateral para escolher seu novo plano! 😉'), backgroundColor: Colors.blue));
@@ -113,8 +109,6 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
 
   /// Modal que abre direto da linha do produto (já sabe qual é o produto)
   void _abrirModalPromocao(String produtoId, String nome, double precoBase) {
-    // Como esse botão só é clicável para quem NÃO está em promoção,
-    // a validação do limite roda direto aqui:
     if (_promocoesAtivasAgora >= _limitePromocoes) {
       _mostrarAvisoLimite();
       return;
@@ -131,7 +125,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Preço Atual: R\$ ${precoBase.toStringAsFixed(2)}', style: const TextStyle(color: Colors.grey)),
+            Text('Preço Actual: R\$ ${precoBase.toStringAsFixed(2)}', style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
@@ -140,6 +134,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
             ),
           ],
         ),
+
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -163,7 +158,6 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
     );
   }
 
-  // ✨ TRAZENDO DE VOLTA O MÉTODO DO BOTÃO FLUTUANTE ATUALIZADO
   void _abrirModalNovaPromocao() {
     if (_promocoesAtivasAgora >= _limitePromocoes) {
       _mostrarAvisoLimite();
@@ -189,12 +183,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                   const Text('Selecione o produto:'),
                   const SizedBox(height: 8),
                   FutureBuilder<QuerySnapshot>(
-                    future: _firestore
-                        .collection('estabelecimentos')
-                        .doc(widget.lojaId)
-                        .collection('produtos')
-                        .where('promocao', isEqualTo: false) // Busca quem não tá em promoção
-                        .get(),
+                    future: _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').where('promocao', isEqualTo: false).get(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) return const LinearProgressIndicator();
 
@@ -262,8 +251,11 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Captura a largura para aplicar a responsividade cirúrgica sô!
+    final double larguraTela = MediaQuery.of(context).size.width;
+    final bool ehCelularGeral = larguraTela < 800;
+
     return Scaffold(
-      // backgroundColor: const Color(0xFFF5F5F5),
       body: Padding(
         padding: const EdgeInsets.all(10.0),
         child: Column(
@@ -289,7 +281,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                   final produtos = snapshot.data!.docs;
                   _promocoesAtivasAgora = produtos.where((doc) => (doc.data() as Map)['promocao'] == true).length;
 
-                  if (_promocoesAtivasAgora <= 0) {
+                  if (produtos.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -297,7 +289,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                           Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[400]),
                           const SizedBox(height: 16),
                           const Text(
-                            'Nenhuma promoção cadastrado ainda, uai!',
+                            'Nenhum produto cadastrado ainda, uai!',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
                           ),
                         ],
@@ -316,33 +308,94 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                       final double precoPromo = (dados['preco_promocional'] ?? 0.0).toDouble();
                       final bool emPromocao = dados['promocao'] ?? false;
 
+                      // 🔥 COMPONENTIZAÇÃO DO BOTÃO DE AÇÃO PARA EVITAR REPETIÇÃO SÔ!
+                      final Widget botaoAcao = emPromocao
+                          ? ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[50],
+                                foregroundColor: Colors.red,
+                                elevation: 0,
+                                minimumSize: ehCelularGeral ? const Size(double.infinity, 48) : null,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.label_off, size: 16),
+                              label: const Text('Encerrar Promo', style: TextStyle(fontWeight: FontWeight.bold)),
+                              onPressed: () => _removerPromocao(id),
+                            )
+                          : ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _promocoesAtivasAgora >= _limitePromocoes ? Colors.grey[100] : Colors.amber[50],
+                                foregroundColor: _promocoesAtivasAgora >= _limitePromocoes ? Colors.grey : Colors.amber[900],
+                                elevation: 0,
+                                minimumSize: ehCelularGeral ? const Size(double.infinity, 48) : null,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.local_offer, size: 16),
+                              label: const Text('Colocar em Promoção', style: TextStyle(fontWeight: FontWeight.bold)),
+                              onPressed: () => _abrirModalPromocao(id, nome, precoBase),
+                            );
+
+                      // 🚨 REVOLUÇÃO RESPONSIVA DO CARD SÔ:
                       return Card(
                         color: Colors.white,
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          title: Text(nome),
-                          subtitle: emPromocao
-                              ? Text(
-                                  'De  R\$ ${precoBase.toStringAsFixed(2)}  por  R\$ ${precoPromo.toStringAsFixed(2)}',
-                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFFEEEEEE)),
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: ehCelularGeral
+                              ? Column(
+                                  // 📱 SE FOR CELULAR: Empilha os dados sem estourar a tela sô!
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    const SizedBox(height: 8),
+                                    emPromocao
+                                        ? Row(
+                                            children: [
+                                              Text(
+                                                'De R\$ ${precoBase.toStringAsFixed(2)}',
+                                                style: const TextStyle(color: Colors.grey, decoration: TextDecoration.lineThrough, fontSize: 13),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'por R\$ ${precoPromo.toStringAsFixed(2)}',
+                                                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15),
+                                              ),
+                                            ],
+                                          )
+                                        : Text('R\$ ${precoBase.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      child: Divider(color: Color(0xFFF5F5F5)),
+                                    ),
+                                    botaoAcao, // Botão esticado ocupando toda a base no mobile!
+                                  ],
                                 )
-                              : Text('R\$ ${precoBase.toStringAsFixed(2)}'),
-                          trailing: emPromocao
-                              ? ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red[50], foregroundColor: Colors.red, elevation: 0),
-                                  icon: const Icon(Icons.label_off, size: 16),
-                                  label: const Text('Encerrar Promo'),
-                                  onPressed: () => _removerPromocao(id),
-                                )
-                              : ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _promocoesAtivasAgora >= _limitePromocoes ? Colors.grey[100] : Colors.amber[50],
-                                    foregroundColor: _promocoesAtivasAgora >= _limitePromocoes ? Colors.grey : Colors.amber[900],
-                                    elevation: 0,
-                                  ),
-                                  icon: const Icon(Icons.local_offer, size: 16),
-                                  label: const Text('Colocar em Promoção'),
-                                  onPressed: () => _abrirModalPromocao(id, nome, precoBase),
+                              : Row(
+                                  // 🖥️ SE FOR WEB/DESKTOP: Tudo na mesma linha bem espaçado sô!
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                          const SizedBox(height: 4),
+                                          emPromocao
+                                              ? Text(
+                                                  'De  R\$ ${precoBase.toStringAsFixed(2)}  por  R\$ ${precoPromo.toStringAsFixed(2)}',
+                                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                                                )
+                                              : Text('R\$ ${precoBase.toStringAsFixed(2)}', style: TextStyle(color: Colors.grey[700])),
+                                        ],
+                                      ),
+                                    ),
+                                    botaoAcao, // Botão compacto fixado no canto direito!
+                                  ],
                                 ),
                         ),
                       );
@@ -354,7 +407,6 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
           ],
         ),
       ),
-      // ✨ BOTÃO FLUTUANTE ADICIONADO NOVAMENTE AQUI
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _abrirModalNovaPromocao,
         backgroundColor: const Color(0xFFE65100),

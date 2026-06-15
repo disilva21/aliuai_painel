@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui_web' as ui_web;
 import 'dart:html' as html;
 import 'package:html_editor_enhanced/html_editor.dart';
@@ -251,7 +252,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
       value: _categoriaSelecionadaId,
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: 'Ramo / Categoria do App',
+        labelText: 'Ramo de Atividade',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
       items: _categoriasLojas.map((cat) {
@@ -312,22 +313,86 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     final inputWhatsapp = TextFormField(
       controller: _whatsappController,
       keyboardType: TextInputType.phone,
+      maxLength: 15,
       decoration: InputDecoration(
         labelText: 'WhatsApp (com DDD)',
         prefixIcon: const Icon(Icons.phone_android, color: Colors.green),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
+      inputFormatters: [
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          // 1. Remove tudo o que não for número sô
+          String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+          // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
+          if (newValue.text.length < oldValue.text.length) {
+            return newValue;
+          }
+
+          String textoFormatado = "";
+
+          // 2. Monta a máscara certinha sem espaços duplicados sô!
+          if (texto.length > 0) {
+            textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
+          }
+          if (texto.length > 2) {
+            // Juntamos o fecha parêntese com o espaço padrão sô: ") "
+            textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
+          }
+          if (texto.length > 7) {
+            // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
+            textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
+          }
+
+          return TextEditingValue(
+            text: textoFormatado,
+            selection: TextSelection.collapsed(offset: textoFormatado.length),
+          );
+        }),
+      ],
       validator: (val) => val!.isEmpty ? 'O WhatsApp é obrigatório.' : null,
     );
 
     final inputFixo = TextFormField(
       controller: _fixoController,
+      maxLength: 15,
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
         labelText: 'Telefone Fixo (Opcional)',
         prefixIcon: const Icon(Icons.phone, color: Colors.blue),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
+      inputFormatters: [
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          // 1. Remove tudo o que não for número sô
+          String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+          // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
+          if (newValue.text.length < oldValue.text.length) {
+            return newValue;
+          }
+
+          String textoFormatado = "";
+
+          // 2. Monta a máscara certinha sem espaços duplicados sô!
+          if (texto.length > 0) {
+            textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
+          }
+          if (texto.length > 2) {
+            // Juntamos o fecha parêntese com o espaço padrão sô: ") "
+            textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
+          }
+          if (texto.length > 7) {
+            // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
+            textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
+          }
+
+          return TextEditingValue(
+            text: textoFormatado,
+            selection: TextSelection.collapsed(offset: textoFormatado.length),
+          );
+        }),
+      ],
     );
 
     return Scaffold(

@@ -6,11 +6,12 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
 
 class CadastroProdutoModal extends StatefulWidget {
-  final Map<String, dynamic>? produtoExistente; // Para futuras edições de produto
+  final Map<String, dynamic>? produtoExistente; // Para edições de produto
   final String lojaId;
+  final String categoriaLoja; // Recebe o ID do nicho pai tratado (ex: 'cat_restaurantes')
   final String? idProduto; // ID do produto para edição, se aplicável
 
-  const CadastroProdutoModal({super.key, this.produtoExistente, required this.lojaId, this.idProduto});
+  const CadastroProdutoModal({super.key, this.produtoExistente, required this.lojaId, required this.categoriaLoja, this.idProduto});
 
   @override
   State<CadastroProdutoModal> createState() => _CadastroProdutoModalState();
@@ -29,16 +30,16 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
   String _fotoUrl = '';
 
   bool _salvando = false;
-  String? _categoriaSelecionada; // 🔥 Armazena o ID da categoria global selecionada!
+  String? _categoriaSelecionada; // Armazena o slug em minúsculo sô!
 
-  // 📡 Lista dinâmica das categorias globais do banco sô
-  List<Map<String, dynamic>> _categoriasGlobais = [];
+  // 📡 Lista dinâmica das categorias filtradas por nicho pai sô
+  List<Map<String, dynamic>> _categoriasFiltradas = [];
   bool _carregandoCategorias = true;
 
   @override
   void initState() {
     super.initState();
-    _carregarCategoriasGlobais(); // 🔥 Puxa a tabela genérica do banco sô!
+    _carregarCategoriasPorNicho();
 
     // Se um produto existente for passado, pré-preenche os campos para edição
     if (widget.produtoExistente != null) {
@@ -46,7 +47,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
       _precoController.text = widget.produtoExistente!['preco'].toString();
       _descricaoController.text = widget.produtoExistente!['descricao'] ?? '';
       _fotoUrl = widget.produtoExistente!['foto_url'] ?? '';
-      _categoriaSelecionada = widget.produtoExistente!['categoria_id']; // 🔥 Resgata a ref/id da categoria salva
+      _categoriaSelecionada = widget.produtoExistente!['categoria_id']; // Resgata o slug salvo sô
     }
   }
 
@@ -58,34 +59,40 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     super.dispose();
   }
 
-  /// 🛠️ MÉTODO CORRIGIDO: Busca a lista genérica/global do Firebase para todas as lojas sô!
-  Future<void> _carregarCategoriasGlobais() async {
+  /// 🛠️ Busca apenas as subcategorias permitidas para o nicho desta loja sô!
+  Future<void> _carregarCategoriasPorNicho() async {
     try {
-      // Busca a coleção geral sem filtros de lojaId sô!
-      final snapshot = await _firestore.collection('categoria_produto').orderBy('nome').get();
+      final snapshot = await _firestore.collection('categoria_produto').where('estabelecimentos_permitidos', arrayContains: widget.categoriaLoja).where('ativo', isEqualTo: true).get();
 
       final List<Map<String, dynamic>> carregadas = snapshot.docs.map((doc) {
-        return {'id': doc.id, 'nome': doc['nome'].toString()};
+        final dados = doc.data();
+        return {
+          'slug': dados['slug'] ?? doc.id, // ID tratado em minúsculo sô!
+          'nome': dados['nome'].toString(), // Nome com maiúscula para exibição
+        };
       }).toList();
+
+      // Ordena por ordem alfabética o nome bonito sô!
+      carregadas.sort((a, b) => a['nome'].compareTo(b['nome']));
 
       if (mounted) {
         setState(() {
-          _categoriasGlobais = carregadas;
+          _categoriasFiltradas = carregadas;
           _carregandoCategorias = false;
 
-          // Se não for edição e tiver dados no banco, pré-seleciona a primeira da lista sô
-          if (_categoriaSelecionada == null && _categoriasGlobais.isNotEmpty) {
-            _categoriaSelecionada = _categoriasGlobais.first['id'];
+          // Se não for edição e tiver dados, pré-seleciona a primeira opção
+          if (_categoriaSelecionada == null && _categoriasFiltradas.isNotEmpty) {
+            _categoriaSelecionada = _categoriasFiltradas.first['slug'];
           }
         });
       }
     } catch (e) {
-      print('Erro ao carregar categorias genéricas sô: $e');
+      debugPrint('Erro ao carregar categorias por nicho sô: $e');
       if (mounted) setState(() => _carregandoCategorias = false);
     }
   }
 
-  /// ✨ MÉTODO OPTIMIZADO: Upload de foto otimizado para usar widget.lojaId
+  /// Upload de foto em Bytes para Flutter Web
   Future<void> _escolherEEnviarFoto() async {
     FilePickerResult? resultado = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
 
@@ -110,8 +117,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
             _fotoUrl = urlPublica;
             _subindoFoto = false;
           });
-
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto updated! 📸'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto atualizada! 📸'), backgroundColor: Colors.green));
         }
       } catch (e) {
         if (mounted) {
@@ -122,6 +128,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     }
   }
 
+  /// 🔥 MÉTODO DE SALVAMENTO AJUSTADO: Alinhamento perfeito com o Filtro sô!
   Future<void> _salvarProduto() async {
     if (!_formKey.currentState!.validate() || _categoriaSelecionada == null) return;
 
@@ -131,9 +138,10 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     final precoDouble = double.tryParse(precoTexto) ?? 0.0;
 
     try {
-      // Encontra o nome da categoria selecionada para salvar um espelho textual se precisar sô
-      final catObjeto = _categoriasGlobais.firstWhere((cat) => cat['id'] == _categoriaSelecionada);
-      final String nomeCategoria = catObjeto['nome'];
+      // 🧠 Extrai os dados exatos do item selecionado na lista filtrada sô!
+      final catObjeto = _categoriasFiltradas.firstWhere((cat) => cat['slug'] == _categoriaSelecionada);
+      final String nomeCategoriaBonito = catObjeto['nome']; // Ex: "Refeições / Prato Feito"
+      final String slugCategoriaMinusc = catObjeto['slug']; // Ex: "refeicoes_prato_feito"
 
       final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
       String cidadeIdDaLoja = '';
@@ -147,8 +155,11 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         'nome': _nomeController.text.trim(),
         'preco': precoDouble,
         'descricao': _descricaoController.text.trim(),
-        'categoria_id': _categoriaSelecionada, // 🔥 Grava a REF/ID da categoria genérica sô!
-        'categoria_produto': nomeCategoria, // Mantém a string para o app do cliente ler rápido sô
+
+        // 🚨 AS DUAS CHAVES SINCROZINADAS AQUI SÔ:
+        'categoria_id': slugCategoriaMinusc, // 🔥 Salva minúsculo pro FILTRO funcionar!
+        'categoria_produto': nomeCategoriaBonito, // Salva o nome bonito para a tela do cliente!
+
         'foto_url': _fotoUrl,
       };
 
@@ -188,9 +199,9 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         children: [
           Row(
             children: [
-              Icon(Icons.add_box, color: const Color(0xFFE65100)),
+              const Icon(Icons.add_box, color: Color(0xFFE65100)),
               const SizedBox(width: 8),
-              Text(widget.produtoExistente != null ? 'Editar Produto' : 'Cadastrar Novo Produto', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(widget.produtoExistente != null ? 'Editar Produto' : 'Novo Produto', style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
@@ -203,8 +214,8 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                 height: 200,
                 child: Center(child: CircularProgressIndicator(color: Color(0xFFE65100))),
               )
-            : _categoriasGlobais.isEmpty
-            ? const SizedBox(height: 100, child: Center(child: Text('Nenhuma categoria genérica cadastrada no painel master sô! 🌐')))
+            : _categoriasFiltradas.isEmpty
+            ? SizedBox(height: 100, child: Center(child: Text('Nenhuma subcategoria liberada para o nicho "${widget.categoriaLoja}" sô! 🌾')))
             : SingleChildScrollView(
                 child: Form(
                   key: _formKey,
@@ -217,19 +228,18 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                         controller: _nomeController,
                         decoration: InputDecoration(
                           labelText: 'Nome do Produto',
-                          hintText: 'Ex: X-Burguer Artesanal, Blusa Polo, Gás P13...',
+                          hintText: 'Ex: X-Burguer Artesanal, Blusa Polo...',
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         validator: (val) => val == null || val.trim().isEmpty ? 'Digite o nome do produto.' : null,
                       ),
                       const SizedBox(height: 16),
 
-                      // LINHA DUPLA: PREÇO E CATEGORIA DO PRODUTO
+                      // PREÇO E CATEGORIA DO PRODUTO
                       Row(
                         children: [
-                          // CAMPO PREÇO
                           Expanded(
-                            flex: 4,
+                            flex: 5,
                             child: TextFormField(
                               controller: _precoController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -249,19 +259,25 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                           ),
                           const SizedBox(width: 16),
 
-                          // SELETOR DE SEÇÃO (MAPEANDO O ID COMO VALOR SÔ!)
+                          // DROPDOWN RESPONSIVO E ADAPTADO PARA TEXTOS COMPRIDOS SÔ!
                           Expanded(
                             flex: 7,
                             child: DropdownButtonFormField<String>(
                               value: _categoriaSelecionada,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: 'Seção / Categoria',
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                               ),
-                              items: _categoriasGlobais.map((cat) {
+                              items: _categoriasFiltradas.map((cat) {
                                 return DropdownMenuItem<String>(
-                                  value: cat['id'], // 🔥 O valor do item é o ID do documento genérico
-                                  child: Text(cat['nome']), // O texto é o nome bonito sô
+                                  value: cat['slug'], // Mapeia o valor em minúsculo de forma segura
+                                  child: Text(
+                                    cat['nome'], // Nome bonito com acentos e maiúsculas sô
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
                                 );
                               }).toList(),
                               onChanged: (val) => setState(() => _categoriaSelecionada = val),
@@ -278,7 +294,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                         maxLines: 3,
                         decoration: InputDecoration(
                           labelText: 'Descrição / Detalhes',
-                          hintText: 'Ex: Descreva o que vem no prato...',
+                          hintText: 'Ex: Ingredientes ou detalhes do produto...',
                           alignLabelWithHint: true,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),

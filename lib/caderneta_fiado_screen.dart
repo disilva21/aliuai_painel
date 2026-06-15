@@ -1,4 +1,3 @@
-import 'package:aliuai_painel/lancar_fiado_screen.dart';
 import 'package:aliuai_painel/models/cliente_fiado_model.dart';
 import 'package:aliuai_painel/models/divida_fiado_model.dart';
 import 'package:aliuai_painel/util/formatar_telefone.dart';
@@ -66,7 +65,13 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           return AlertDialog(
-            title: Text('Anotar na conta de: ${cliente.nome} 📒✍️', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Column(
+              children: [
+                Text('Anotar Fiado 📒✍️', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 10),
+                Text('Nome: ${cliente.nome}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -81,7 +86,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: descCtrl,
-                  decoration: const InputDecoration(labelText: 'O que ele levou? (Opcional)', hintText: 'Ex: 1kg de arroz, pastel...', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'O que ele levou?', hintText: 'Ex: 1kg de arroz, pastel...', border: OutlineInputBorder()),
                 ),
               ],
             ),
@@ -260,7 +265,10 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
               // Passamos o _limiteAtual direto na Query do Stream sô!
               stream: _firestore.collection('clientes_fiado').where('loja_id', isEqualTo: widget.lojaId).orderBy('nome').limit(_limiteAtual).snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text('Erro ao carregar devedores sô: ${snapshot.error}'));
+                if (snapshot.hasError) {
+                  print(snapshot.error);
+                  return Center(child: Text('Erro ao carregar devedores sô: ${snapshot.error}'));
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
@@ -446,7 +454,10 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Dívida Total:', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                          Text(
+                            'Dívida Total:',
+                            style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
                           Text(
                             'R\$ ${cliente.saldoDevedor.toStringAsFixed(2)}',
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.redAccent),
@@ -471,17 +482,18 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Align(
-                        alignment: AlignmentGeometry.bottomRight,
-                        child: TextButton.icon(
-                          icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Colors.green), // 🔥 ÍCONE CORRIGIDO SÔ!
-                          label: Text(
-                            'Enviar Saldo Geral',
-                            style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+                      if (cliente.saldoDevedor > 0)
+                        Align(
+                          alignment: AlignmentGeometry.bottomRight,
+                          child: TextButton.icon(
+                            icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Colors.green), // 🔥 ÍCONE CORRIGIDO SÔ!
+                            label: Text(
+                              'Enviar Saldo Geral',
+                              style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: false),
                           ),
-                          onPressed: () => _enviarCobrancaWhatsApp(apenasSelecionadas: false),
                         ),
-                      ),
                     ],
                   )
                 : Row(
@@ -560,7 +572,10 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                   .orderBy('data_compra', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text('Erro: ${snapshot.error}'));
+                if (snapshot.hasError) {
+                  print(snapshot.error);
+                  return Center(child: Text('Erro ao carregar devedores sô, tente mais tarde!'));
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(

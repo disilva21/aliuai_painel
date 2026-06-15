@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -151,10 +152,12 @@ class _CadastroScreenState extends State<CadastroScreen> {
     try {
       String idCidadeFinal;
 
+      final _firestore = FirebaseFirestore.instance;
+
       // =======================================================================
       // 1. VERIFICAÇÃO ANTI-DUPLICAÇÃO: A cidade já existe com esse nome e UF?
       // =======================================================================
-      final cidadesExistentes = await FirebaseFirestore.instance
+      final cidadesExistentes = await _firestore
           .collection('cidades')
           .where('nome', isEqualTo: _nomeCidadeSelecionada)
           .where('uf', isEqualTo: _estadoSelecionado)
@@ -166,7 +169,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
         idCidadeFinal = cidadesExistentes.docs.first.id;
         print('Cidade já existia no Aliuai com o ID: $idCidadeFinal');
       } else {
-        final novaCidadeRef = FirebaseFirestore.instance.collection('cidades').doc();
+        final novaCidadeRef = _firestore.collection('cidades').doc();
         idCidadeFinal = novaCidadeRef.id;
         // 1. SALVA OU ATUALIZA A CIDADE NA COLLECTION DE CIDADES DO FIREBASE
         await novaCidadeRef.set({
@@ -187,7 +190,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
         String idAmigavel = gerarSlugEstabelecimento(_nomeLojaController.text);
 
         // 2. Checa se já existe um DOCUMENTO com esse ID exato sô
-        var docExistente = await FirebaseFirestore.instance.collection('estabelecimentos').doc(idAmigavel).get();
+        var docExistente = await _firestore.collection('estabelecimentos').doc(idAmigavel).get();
         // 3. Se o portão estiver fechado (já existe), adiciona o código complementar!
         if (docExistente.exists) {
           // Pode ser um número sequencial, ou um hash curto aleatório sô (ex: 4 dígitos)
@@ -195,7 +198,42 @@ class _CadastroScreenState extends State<CadastroScreen> {
           idAmigavel = "$idAmigavel-$codigoCurto"; // Viraria: banca-do-nelson-vicosa-452
         }
 
-        await FirebaseFirestore.instance.collection('estabelecimentos').doc(idAmigavel).set({
+        String planoInicial = 'indefinido';
+        int limiteProdutos = 0;
+        int limitePromocoes = 0;
+        String statusPagamento = 'pendente';
+        // O vencimento padrão seria agora, forçando ele a escolher um plano sô
+        DateTime dataVencimento = DateTime.now();
+
+        // 2️⃣ CONSULTA A CONFIGURAÇÃO GLOBAL DO ALIUAI
+
+        final docConfigRef = _firestore.collection('configuracao').doc('ziNL1wNtBbGRWSQHCRzQ');
+        final docConfig = await docConfigRef.get();
+
+        bool aplicouCampanhaGratis = false;
+
+        if (docConfig.exists) {
+          final dadosConfig = docConfig.data() as Map<String, dynamic>;
+          bool isFree = dadosConfig['is_free'] ?? false;
+          int diasGratis = dadosConfig['duracao_free_dias'] ?? 30;
+          int vagasRestantes = dadosConfig['qtd_free'] ?? 0;
+
+          // 🚀 A MÁGICA DA AUTOMAÇÃO SÔ!
+          if (isFree == true && vagasRestantes > 0) {
+            planoInicial = 'master'; // Já entra com o plano top!
+            limiteProdutos = 100; // Seus limites combinados
+            limitePromocoes = 50;
+            statusPagamento = 'em_dia';
+            dataVencimento = DateTime.now().add(Duration(days: diasGratis));
+            aplicouCampanhaGratis = true;
+          }
+        }
+
+        final batch = _firestore.batch();
+
+        final novaLojaRef = _firestore.collection('estabelecimentos').doc(idAmigavel);
+
+        batch.set(novaLojaRef, {
           'uid': uidUsuario,
           'slug': idAmigavel,
           'nome': _nomeLojaController.text.trim(),
@@ -205,15 +243,37 @@ class _CadastroScreenState extends State<CadastroScreen> {
           'nota': 5.0,
           'tempo_entrega': '30-45 min',
           'is_delivery': false,
-          'limite_promocoes': 0,
-          'plano_atual': 'indefinido',
-          'status_pagamento': 'pendente',
+          'limite_promocoes': limitePromocoes,
+          'limite_produtos': limiteProdutos,
+          'plano_atual': planoInicial,
+          'status_pagamento': statusPagamento,
+          'proximo_vencimento': Timestamp.fromDate(dataVencimento),
         });
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conta criada com sucesso!'), backgroundColor: Colors.green));
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+        // 📉 SE PEGOU A VAGA, DESCONTA 1 LÁ NA TABELA DE CONFIGURAÇÃO SÔ!
+        if (aplicouCampanhaGratis) {
+          batch.update(docConfigRef, {
+            'qtd_free': FieldValue.increment(-1), // Diminui uma vaga de forma segura no servidor!
+          });
         }
+
+        // Manda os dois comandos juntos pro espaço sô!
+        await batch.commit();
+        if (mounted) {
+          // 🚀 LIMPA A ÁRVORE DE TELAS E LEVA DIRETO PARA A HOME SÔ!
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => DashboardScreen(), // Passa o ID da loja nova sô!
+            ),
+            (Route<dynamic> route) => false, // Isso aqui apaga a tela de cadastro da memória para ele não voltar nela no botão voltar!
+          );
+
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seja bem-vindo ao Aliuai! Seu painel está pronto sô! 🎉'), backgroundColor: Colors.green));
+        }
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conta criada com sucesso!'), backgroundColor: Colors.green));
+        //   Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+        // }
       }
     } on FirebaseAuthException catch (e) {
       String mensagemErro = 'Erro ao cadastrar parceiro.';

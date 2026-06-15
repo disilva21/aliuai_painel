@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:aliuai_painel/caderneta_fiado_screen.dart';
 import 'package:aliuai_painel/gerenciar_eventos_screen.dart';
 import 'package:aliuai_painel/metrica_screen.dart';
@@ -44,6 +46,134 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _inicializarPainel();
     _verificarPrimeiroAcesso();
     _escutarNovosPedidos();
+
+    // carregarPlanosIniciaisEmDev();
+  }
+
+  Future<void> carregarPlanosIniciaisEmDev() async {
+    final firestoreDev = FirebaseFirestore.instance;
+    final batch = firestoreDev.batch();
+
+    await MigradorCategoriasAliuai.exportarCategoriasDeProdParaJson();
+
+    // 🗺️ O mapa dos seus planos oficiais sô! Ajuste os valores se precisar:
+    final List<Map<String, dynamic>> novosPlanos = [
+      {
+        'ordem': 1,
+        'limite_produtos': 0,
+        'limite_promocoes': 0,
+        'descricao': 'Marque sua presença no mapa. Ideal para estabelecimentos que querem ser encontrados por novos clientes.',
+        'id': 'inicial',
+        'valor': 24.9,
+        'nome': 'Plano Vitrine',
+        'beneficios': ['Exibe o estabelecimento no app', 'Cadastro de Eventos', 'Suporte via WhatsApp'],
+        'ativo': true,
+        'valor_promocional': 19.9,
+      },
+      {
+        'limite_produtos': 50,
+        'ordem': 2,
+        'limite_promocoes': 10,
+        'descricao': 'Perfeito para lojas que precisam cadastrar seu cardápio completo, criar promoções e aumentar o volume de vendas diárias.',
+        'id': 'intermediario',
+        'valor': 39.9,
+        'beneficios': ['Exibe o estabelecimento no app', 'Cadastre até 50 produtos', 'Cadastre até 10 promoções', 'Painel de Pedidos', 'Cadastro de Eventos', 'Suporte via WhatsApp'],
+        'nome': 'Plano Expansão',
+        'ativo': true,
+        'valor_promocional': 34.9,
+      },
+      {
+        'ordem': 3,
+        'limite_produtos': 100,
+        'limite_promocoes': 50,
+        'descricao': 'Para negócios consolidados que buscam máxima visibilidade na busca do app, suporte prioritário e ferramentas avançadas.',
+        'id': 'master',
+        'valor': 59.9,
+        'nome': 'Plano Master',
+        'beneficios': [
+          'Exibe o estabelecimento no app',
+          'Cadastre até 100 produtos',
+          'Cadastre até 50 promoções',
+          'Painel de Pedidos',
+          'Métricas e Gráficos',
+          'Cadastro de Eventos',
+          'Cardeneta de Fiado',
+          'Suporte prioritário via WhatsApp',
+        ],
+        'ativo': true,
+        'valor_promocional': 49.9,
+      },
+    ];
+
+    try {
+      print('🔄 Injetando a coleção "planos" na base de DEV...');
+
+      for (var plano in novosPlanos) {
+        final docRef = firestoreDev.collection('planos').doc(plano['id']);
+
+        batch.set(docRef, {
+          'id': plano['id'],
+          'ordem': plano['ordem'],
+          'nome': plano['nome'],
+          'valor': plano['valor'],
+          'valor_promocional': plano['valor_promocional'],
+          'beneficios': plano['beneficios'] as List,
+          'limite_produtos': plano['limite_produtos'],
+          'limite_promocoes': plano['limite_promocoes'],
+          'ativo': plano['ativo'],
+          'descricao': plano['descricao'],
+        });
+      }
+
+      await batch.commit();
+      print('🚀 [SUCESSO TOTAL] Coleção de planos criada e sincronizada em DEV sô!');
+    } catch (e) {
+      print('❌ Erro ao salvar planos em DEV sô: $e');
+    }
+  }
+
+  Future<void> clonarColecaoPlanosDeProdParaDev() async {
+    // 🚨 ATENÇÃO SÔ: Para esse script rodar, você precisa inicializar temporariamente
+    // o Firebase apontando para o projeto de PRODUÇÃO para buscar os dados primeiro!
+
+    final firestoreProd = FirebaseFirestore.instance; // Instância atual (conectada em PROD)
+
+    try {
+      print('🔄 Buscando os planos oficiais lá na base de Produção...');
+
+      // 1. Puxa todos os documentos da coleção "planos" de PROD sô
+      final snapshotProd = await firestoreProd.collection('planos').get();
+
+      if (snapshotProd.docs.isEmpty) {
+        print('⚠️ Nenhum plano encontrado na base de produção sô!');
+        return;
+      }
+
+      print('📦 Encontrou ${snapshotProd.docs.length} planos. Prepare os dados...');
+
+      // 2. Transforma os documentos em uma lista de mapas para não perder nada sô!
+      List<Map<String, dynamic>> dadosDosPlanos = [];
+      for (var doc in snapshotProd.docs) {
+        final dados = doc.data();
+        // Guardamos o ID do documento para manter o mesmo ID em DEV sô!
+        dados['id_documento_original'] = doc.id;
+        dadosDosPlanos.add(dados);
+      }
+
+      print('--------------------------------------------------');
+      print('🚨 PASSO CRUCIAL SÔ:');
+      print('1. Pare a execução do app agora.');
+      print('2. Mude as chaves de inicialização do Firebase para o seu projeto de DEV.');
+      print('3. Cole a lista de mapas abaixo no método de gravação que vou te mostrar!');
+      print('--------------------------------------------------');
+
+      // Imprime no console em formato JSON/Mapa para você copiar sô!
+      for (var plano in dadosDosPlanos) {
+        print('PLANO_DADO: $plano');
+      }
+    } catch (e) {
+      print('❌ Erro ao ler dados de produção sô: $e');
+    }
   }
 
   void _escutarNovosPedidos() {
@@ -99,6 +229,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// 🔥 Fonte Única da Verdade: Busca os dados uma única vez e distribui
   Future<void> _inicializarPainel() async {
     try {
+      // await MigradorCategoriasAliuai.exportarCategoriasDeProdParaJson();
+
+      // String meuJsonDeProd =
+      //     '[{"nome":"Distribuidoras & Bebidas","ordem":6,"cor":"#FFB300","icone":"sports_bar","id_documento_original":"cat_bebidas"},{"icone":"event_available_rounded","nome":"Eventos","cor":"#7B1FA2","ordem":8,"id_documento_original":"cat_eventos"},{"nome":"Farmácias","ordem":2,"cor":"#1E88E5","icone":"local_pharmacy","id_documento_original":"cat_farmacias"},{"icone":"home_repair_service","nome":"Material de Construção","cor":"#E65100","ordem":6,"id_documento_original":"cat_material_construcao"},{"icone":"shopping_basket","nome":"Mercados","cor":"#43A047","ordem":3,"id_documento_original":"cat_mercados"},{"nome":"Moda & Beleza","cor":"#D81B60","ordem":7,"icone":"checkroom","id_documento_original":"cat_moda"},{"nome":"Restaurantes","ordem":1,"cor":"#E53935","icone":"restaurant","id_documento_original":"cat_restaurantes"},{"icone":"build","nome":"Serviços","cor":"#546E7A","ordem":4,"id_documento_original":"cat_servicos"},{"nome":"Utilidades","cor":"#00897B","ordem":50,"icone":"info","id_documento_original":"cat_utilidades"}]';
+      // await MigradorCategoriasAliuai.importarJsonParaDev(meuJsonDeProd);
+
+      // await MigradorSecoesCardapio.exportarCategoriaProdutoDeProdParaJson();
+
+      // String meuJsonDeProdutos =
+      //     '[{"id":"3SYDzsUtpcsIeW0XOCTl","ativo":true,"slug":"racoes_e_alimentos_pet","estabelecimentos_permitidos":["cat_mercados","cat_utilidades","cat_servicos"],"nome":"Rações & Alimentos Pet","id_documento_original":"3SYDzsUtpcsIeW0XOCTl"},{"id":"531MEeEaaK0HpC1de5L4","nome":"Hortifrúti","slug":"hortifruti","estabelecimentos_permitidos":["cat_mercados","cat_utilidades"],"ativo":true,"id_documento_original":"531MEeEaaK0HpC1de5L4"},{"nome":"Informática & Periféricos","slug":"informatica_e_perifericos","estabelecimentos_permitidos":["cat_utilidades","cat_servicos"],"ativo":true,"id":"5lbF6MqTaQ6wUJ4PSDEf","id_documento_original":"5lbF6MqTaQ6wUJ4PSDEf"},{"slug":"moda_feminina","estabelecimentos_permitidos":["cat_moda_beleza","cat_utilidades"],"nome":"Moda Feminina","ativo":true,"id":"5ldyxduNYzTn0sCYBnFu","id_documento_original":"5ldyxduNYzTn0sCYBnFu"},{"nome":"Bebidas","slug":"bebidas","estabelecimentos_permitidos":["cat_restaurantes","cat_distribuidora_bebidas","cat_mercados","cat_utilidades"],"ativo":true,"id":"6XAC30P80474tiZPGUOk","id_documento_original":"6XAC30P80474tiZPGUOk"},{"ativo":true,"slug":"porcoes","estabelecimentos_permitidos":["cat_restaurantes","cat_distribuidora_bebidas"],"nome":"Porções","id":"C6VEQXoGDRBbqnKtvhDb","id_documento_original":"C6VEQXoGDRBbqnKtvhDb"},{"id":"F68uAQYFN6uKnWgU9NFT","slug":"acessorios_e_brinquedos_pet","estabelecimentos_permitidos":["cat_utilidades","cat_servicos"],"nome":"Acessórios & Brinquedos Pet","ativo":true,"id_documento_original":"F68uAQYFN6uKnWgU9NFT"},{"ativo":true,"slug":"gas_e_agua_mineral","estabelecimentos_permitidos":["cat_distribuidora_bebidas","cat_mercados","cat_utilidades"],"nome":"Gás & Água Mineral","id":"PNcjFIkHKJEBVRhlrmiA","id_documento_original":"PNcjFIkHKJEBVRhlrmiA"},{"slug":"sobremesas","estabelecimentos_permitidos":["cat_restaurantes","cat_mercados","cat_utilidades"],"nome":"Sobremesas","ativo":true,"id":"RHSLckBqGvY2HWMWo3qr","id_documento_original":"RHSLckBqGvY2HWMWo3qr"},{"slug":"moda_masculina","estabelecimentos_permitidos":["cat_moda_beleza","cat_utilidades"],"nome":"Moda Masculina","ativo":true,"id":"So8GszDo9JDyBW4mmE5T","id_documento_original":"So8GszDo9JDyBW4mmE5T"},{"slug":"perfumaria","estabelecimentos_permitidos":["cat_moda_beleza","cat_farmacias","cat_utilidades"],"nome":"Perfumaria","ativo":true,"id":"V9JKtzV1GgCYDz7WW4Wy","id_documento_original":"V9JKtzV1GgCYDz7WW4Wy"},{"id":"WV3nHVR2MNB4U8BoPG0l","slug":"medicamentos_veterinarios","estabelecimentos_permitidos":["cat_farmacias","cat_servicos"],"nome":"Medicamentos Veterinários","ativo":true,"id_documento_original":"WV3nHVR2MNB4U8BoPG0l"},{"id":"WjTYPgvBlmzpW3IKGsLU","ativo":true,"nome":"Carregadores & Cabos","slug":"carregadores_e_cabos","estabelecimentos_permitidos":["cat_utilidades","cat_mercados","cat_distribuidora_bebidas"],"id_documento_original":"WjTYPgvBlmzpW3IKGsLU"},{"id":"XxBxKBrE2js30ICFYk78","slug":"bijuterias_e_acessorios","estabelecimentos_permitidos":["cat_moda_beleza","cat_eventos","cat_utilidades"],"nome":"Bijuterias & Acessórios","ativo":true,"id_documento_original":"XxBxKBrE2js30ICFYk78"},{"nome":"Pizzas & Massas","slug":"pizzas_e_massas","estabelecimentos_permitidos":["cat_restaurantes"],"ativo":true,"id":"aovhnl78qAqWqGWgeQ9i","id_documento_original":"aovhnl78qAqWqGWgeQ9i"},{"id":"bxko6C0snDLN9Y51k3Jh","nome":"Capas & Películas de Celular","estabelecimentos_permitidos":["cat_utilidades","cat_servicos"],"slug":"capas_e_peliculas_de_celular","ativo":true,"id_documento_original":"bxko6C0snDLN9Y51k3Jh"},{"id":"c506i0OzSsWTbTZJOP1Q","nome":"Roupas Íntimas / Lingerie","estabelecimentos_permitidos":["cat_moda_beleza"],"slug":"roupas_intimas___lingerie","ativo":true,"id_documento_original":"c506i0OzSsWTbTZJOP1Q"},{"id":"cEy6WKHfOiCDDhFd2sFK","slug":"suplementos_e_vitaminas","estabelecimentos_permitidos":["cat_farmacias","cat_mercados"],"nome":"Suplementos & Vitaminas","ativo":true,"id_documento_original":"cEy6WKHfOiCDDhFd2sFK"},{"slug":"refeicoes___prato_feito","estabelecimentos_permitidos":["cat_restaurantes"],"nome":"Refeições / Prato Feito","ativo":true,"id":"cSsfWtPW4Ig10tktgzRg","id_documento_original":"cSsfWtPW4Ig10tktgzRg"},{"id":"d3IZ1pOZBjucHfwXUfjY","slug":"higiene_pessoal","estabelecimentos_permitidos":["cat_farmacias","cat_mercados","cat_utilidades"],"nome":"Higiene Pessoal","ativo":true,"id_documento_original":"d3IZ1pOZBjucHfwXUfjY"},{"id":"kFfN9PRDect7e4P7VvdI","ativo":true,"slug":"fones_e_caixas_de_som","estabelecimentos_permitidos":["cat_utilidades","cat_eventos"],"nome":"Fones & Caixas de Som","id_documento_original":"kFfN9PRDect7e4P7VvdI"},{"slug":"decoracao_e_tapetes","estabelecimentos_permitidos":["cat_material_construcao","cat_eventos","cat_utilidades"],"nome":"Decoração & Tapetes","ativo":true,"id":"oKJNDuLXNyjWr2CK0oLg","id_documento_original":"oKJNDuLXNyjWr2CK0oLg"},{"nome":"Cama, Mesa & Banho","estabelecimentos_permitidos":["cat_material_construcao","cat_utilidades"],"slug":"cama_mesa_e_banho","ativo":true,"id":"oZtGPAsDpqKlpKBiDEoC","id_documento_original":"oZtGPAsDpqKlpKBiDEoC"},{"estabelecimentos_permitidos":["cat_restaurantes","cat_utilidades"],"slug":"pasteis_e_salgados","nome":"Pastéis & Salgados","ativo":true,"id":"ojOrRxuXd9C5sDIZCJqa","id_documento_original":"ojOrRxuXd9C5sDIZCJqa"},{"ativo":true,"slug":"moda_infantil___enxoval","estabelecimentos_permitidos":["cat_moda_beleza","cat_utilidades"],"nome":"Moda Infantil / Enxoval","id":"qN6qDK6jZBzE8u9F69uq","id_documento_original":"qN6qDK6jZBzE8u9F69uq"},{"ativo":true,"nome":"Ferramentas & Materiais Elétricos","slug":"ferramentas_e_materiais_eletricos","estabelecimentos_permitidos":["cat_material_construcao","cat_utilidades"],"id":"t160vKuSmDpWgeU4BMHo","id_documento_original":"t160vKuSmDpWgeU4BMHo"},{"id":"tC7upEPauCPDounCq6Qa","estabelecimentos_permitidos":["cat_moda_beleza","cat_utilidades"],"slug":"calcados_e_tenis","nome":"Calçados & Tênis","ativo":true,"id_documento_original":"tC7upEPauCPDounCq6Qa"},{"slug":"outros","estabelecimentos_permitidos":["cat_restaurantes","cat_farmacias","cat_mercados","cat_servicos","cat_distribuidora_bebidas","cat_material_construcao","cat_moda_beleza","cat_eventos","cat_utilidades"],"nome":"Outros","ativo":true,"id":"wVomUxXF3BsxYWD4I3Wr","id_documento_original":"wVomUxXF3BsxYWD4I3Wr"},{"ativo":true,"nome":"Lanches","slug":"lanches","estabelecimentos_permitidos":["cat_restaurantes","cat_distribuidora_bebidas","cat_utilidades"],"id":"wtTCDYZY1Kk50IeSSFzZ","id_documento_original":"wtTCDYZY1Kk50IeSSFzZ"},{"ativo":true,"slug":"cosmeticos_e_maquiagem","estabelecimentos_permitidos":["cat_moda_beleza","cat_farmacias","cat_utilidades"],"nome":"Cosméticos & Maquiagem","id":"yC3QuSMnAm8MKejUE1Nx","id_documento_original":"yC3QuSMnAm8MKejUE1Nx"}]';
+
+      // await MigradorSecoesCardapio.importarCategoriaProdutoParaDev(meuJsonDeProdutos);
+
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -402,5 +545,133 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Divider(color: Colors.white10, height: 1),
     );
+  }
+}
+
+class MigradorCategoriasAliuai {
+  // ===========================================================================
+  // 1º PASSO: RODE EM PROD (Para extrair o JSON oficial sô!)
+  // ===========================================================================
+  static Future<void> exportarCategoriasDeProdParaJson() async {
+    final firestoreProd = FirebaseFirestore.instance;
+
+    try {
+      print('🔄 [PROD] Buscando as categorias oficiais do Aliuai...');
+      final snapshot = await firestoreProd.collection('categorias').get();
+
+      if (snapshot.docs.isEmpty) {
+        print('⚠️ Nenhuma categoria encontrada em PROD sô!');
+        return;
+      }
+
+      List<Map<String, dynamic>> categoriasExportadas = [];
+
+      for (var doc in snapshot.docs) {
+        final dados = doc.data();
+        // 🔥 Salvamos o ID do documento para manter o mesmo ID/Slug em DEV sô!
+        dados['id_documento_original'] = doc.id;
+        categoriasExportadas.add(dados);
+      }
+
+      print('\\n---------------- 👇 COPIE O JSON INTEIRO ABAIXO sô! ----------------\\n');
+      print(jsonEncode(categoriasExportadas));
+      print('\\n--------------------------------------------------------------------\\n');
+      print('🚀 [SUCESSO] Dados extraídos! Copie a linha de texto acima.');
+    } catch (e) {
+      print('❌ Erro ao ler dados de produção sô: $e');
+    }
+  }
+
+  // ===========================================================================
+  // 2º PASSO: RODE EM DEV (Para injetar o JSON que você copiou sô!)
+  // ===========================================================================
+  static Future<void> importarJsonParaDev(String jsonRaw) async {
+    final firestoreDev = FirebaseFirestore.instance;
+    final batch = firestoreDev.batch();
+
+    try {
+      print('🔄 [DEV] Iniciando o processo de injeção via Batch...');
+      final List<dynamic> listaDados = jsonDecode(jsonRaw);
+
+      for (var item in listaDados) {
+        final Map<String, dynamic> dados = Map<String, dynamic>.from(item);
+
+        // Recupera o ID amigável original e remove do mapa para não sujar o documento sô
+        final String idDoc = dados['id_documento_original'];
+        dados.remove('id_documento_original');
+
+        final docRef = firestoreDev.collection('categorias').doc(idDoc);
+        batch.set(docRef, dados);
+      }
+
+      await batch.commit();
+      print('🚀 [SUCESSO BRUTO] A coleção "categorias" foi clonada em DEV com sucesso sô!');
+    } catch (e) {
+      print('❌ Erro ao salvar dados em DEV sô: $e');
+    }
+  }
+}
+
+class MigradorSecoesCardapio {
+  // ===========================================================================
+  // 1º PASSO: RODE EM PROD (Para extrair o JSON das seções do cardápio sô!)
+  // ===========================================================================
+  static Future<void> exportarCategoriaProdutoDeProdParaJson() async {
+    final firestoreProd = FirebaseFirestore.instance;
+
+    try {
+      print('🔄 [PROD] Buscando as seções de produtos oficiais (categoria_produto)...');
+      final snapshot = await firestoreProd.collection('categoria_produto').get();
+
+      if (snapshot.docs.isEmpty) {
+        print('⚠️ Nenhuma seção encontrada em categoria_produto lá em PROD sô!');
+        return;
+      }
+
+      List<Map<String, dynamic>> secoesExportadas = [];
+
+      for (var doc in snapshot.docs) {
+        final dados = doc.data();
+        // 🔥 Garante que vamos manter o mesmo ID/Slug (ex: 'burgers', 'pizzas') em DEV sô!
+        dados['id_documento_original'] = doc.id;
+        secoesExportadas.add(dados);
+      }
+
+      print('\\n---------------- 👇 COPIE O JSON INTEIRO DE PRODUTOS ABAIXO sô! ----------------\\n');
+      print(jsonEncode(secoesExportadas));
+      print('\\n--------------------------------------------------------------------------------\\n');
+      print('🚀 [SUCESSO] Seções extraídas! Copie a linha de texto acima sô.');
+    } catch (e) {
+      print('❌ Erro ao ler categoria_produto de produção sô: $e');
+    }
+  }
+
+  // ===========================================================================
+  // 2º PASSO: RODE EM DEV (Para injetar o JSON das seções do cardápio sô!)
+  // ===========================================================================
+  static Future<void> importarCategoriaProdutoParaDev(String jsonRaw) async {
+    final firestoreDev = FirebaseFirestore.instance;
+    final batch = firestoreDev.batch();
+
+    try {
+      print('🔄 [DEV] Iniciando a injeção de categoria_produto via Batch...');
+      final List<dynamic> listaDados = jsonDecode(jsonRaw);
+
+      for (var item in listaDados) {
+        final Map<String, dynamic> dados = Map<String, dynamic>.from(item);
+
+        // Puxa o ID original e limpa o mapa
+        final String idDoc = dados['id_documento_original'];
+        dados.remove('id_documento_original');
+
+        final docRef = firestoreDev.collection('categoria_produto').doc(idDoc);
+        batch.set(docRef, dados);
+      }
+
+      await batch.commit();
+      print('🚀 [SUCESSO BRUTO] A coleção "categoria_produto" foi clonada em DEV com sucesso sô!');
+    } catch (e) {
+      print('❌ Erro ao salvar categoria_produto em DEV sô: $e');
+    }
   }
 }

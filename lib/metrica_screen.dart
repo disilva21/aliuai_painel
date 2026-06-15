@@ -91,6 +91,10 @@ class _MetricaScreenState extends State<MetricaScreen> {
         // 📡 Stream 1: Puxa os dados em tempo real do Estabelecimento (Acessos e QR Code)
         stream: _firestore.collection('estabelecimentos').doc(widget.lojaId).snapshots(),
         builder: (context, snapshotLoja) {
+          if (snapshotLoja.hasError) {
+            print(snapshotLoja.error);
+            return Center(child: Text('Erro ao carregar as métricas, tente mais tarde!: ${snapshotLoja.error}'));
+          }
           if (!snapshotLoja.hasData) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
           }
@@ -103,6 +107,10 @@ class _MetricaScreenState extends State<MetricaScreen> {
             // 📡 Stream 2: Puxa os pedidos da loja gerados NO DIA DE HOJE
             stream: _firestore.collection('pedidos').where('estabelecimento_id', isEqualTo: widget.lojaId).where('criado_em', isGreaterThanOrEqualTo: inicioDoDia).snapshots(),
             builder: (context, snapshotPedidos) {
+              if (snapshotPedidos.hasError) {
+                print(snapshotPedidos.error);
+                return Center(child: Text('Erro ao carregar as métricas, tente mais tarde!: ${snapshotPedidos.error}'));
+              }
               final int totalPedidosHoje = snapshotPedidos.hasData ? snapshotPedidos.data!.docs.length : 0;
 
               // Calcula a Conversão da Mesa baseado nas leituras do QR Code físico sô!

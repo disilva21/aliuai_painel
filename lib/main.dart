@@ -1,16 +1,11 @@
 import 'package:aliuai_painel/dashboard_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; // Gerado automaticamente pelo 'flutterfire configure'
+
 import 'login_screen.dart';
 import 'admin/admin_login_screen.dart';
 import 'admin/admin_dashboard_screen.dart';
-import 'package:flutter_web_plugins/url_strategy.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  usePathUrlStrategy();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+void runInEnvironment() {
   runApp(const AliuaiPainelApp());
 }
 

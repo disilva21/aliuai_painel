@@ -32,6 +32,10 @@ class PedidosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Captura a largura para orquestrar a responsividade da esteira de pedidos sô!
+    final double larguraTela = MediaQuery.of(context).size.width;
+    final bool ehCelularGeral = larguraTela < 800;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pedidos em Tempo Real 🔔', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -41,12 +45,11 @@ class PedidosScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFF5F5F5),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // 📡 ESCUTA EM TEMPO REAL: Filtra os pedidos dessa loja, dos mais novos para os mais velhos
         stream: FirebaseFirestore.instance.collection('pedidos').where('estabelecimento_id', isEqualTo: lojaId).orderBy('criado_em', descending: true).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            print(snapshot.error); // Loga o erro para debug
-            return Center(child: Text('Erro ao carregar pedidos'));
+            print(snapshot.error);
+            return const Center(child: Text('Erro ao carregar pedidos'));
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -72,15 +75,23 @@ class PedidosScreen extends StatelessWidget {
               final pedido = pedidosDocs[index].data() as Map<String, dynamic>;
 
               final String status = pedido['status'] ?? 'pendente';
-
               final double total = (pedido['total'] ?? 0.0).toDouble();
               final List<dynamic> itens = pedido['itens'] ?? [];
 
-              // Trata a data de criação
               final Timestamp? timestamp = pedido['criado_em'];
               final String horaFormatada = timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : '--:--';
 
               final config = _configurarStatus(status);
+
+              // Componente do Selo de Status sô
+              final Widget seloStatus = Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: config['cor']!.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                child: Text(
+                  config['texto'],
+                  style: TextStyle(color: config['cor'], fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              );
 
               return Card(
                 color: Colors.white,
@@ -88,37 +99,60 @@ class PedidosScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 2,
                 child: ExpansionTile(
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: config['cor']!.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                    child: Text(
-                      config['texto'],
-                      style: TextStyle(color: config['cor'], fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                  title: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text('Pedido: #${pedido['pedido']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                      Expanded(
-                        child: Text('Cliente: ${pedido['nome_cliente']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                      Expanded(
-                        child: Text('${pedido['celular']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                    ],
-                  ),
+                  // No mobile tiramos o trailing fixo para embutir no cabeçalho sô!
+                  trailing: ehCelularGeral ? const Icon(Icons.expand_more) : seloStatus,
+                  title: ehCelularGeral
+                      ? Column(
+                          // 📱 CABEÇALHO MOBILE: Empilhado e contido sô!
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Pedido: #${pedido['pedido']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                seloStatus,
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Cliente: ${pedido['nome_cliente']}', style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                            Text('Celular: ${pedido['celular']}', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                          ],
+                        )
+                      : Row(
+                          // 🖥️ CABEÇALHO WEB: Três colunas limpas lado a lado sô!
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text('Pedido: #${pedido['pedido']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ),
+                            Expanded(
+                              child: Text('Cliente: ${pedido['nome_cliente']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ),
+                            Expanded(
+                              child: Text('${pedido['celular']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ),
+                          ],
+                        ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      children: [
-                        Text('Recebido às $horaFormatada', style: const TextStyle(fontSize: 16)),
-                        SizedBox(width: 20),
-                        Text('Total: R\$ ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
-                      ],
-                    ),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: ehCelularGeral
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('⏱️ Rec. às $horaFormatada', style: const TextStyle(fontSize: 13)),
+                              Text(
+                                'Total: R\$ ${total.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFE65100)),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Text('Recebido às $horaFormatada', style: const TextStyle(fontSize: 16)),
+                              const SizedBox(width: 20),
+                              Text('Total: R\$ ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                   ),
                   children: [
                     const Divider(height: 1),
@@ -133,14 +167,15 @@ class PedidosScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
 
-                          // Lista os produtos de dentro do pedido
                           ...itens.map(
                             (item) => Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('${item['quantidade']}x ${item['nome_produto']}', style: const TextStyle(fontSize: 14)),
+                                  Expanded(
+                                    child: Text('${item['quantidade']}x ${item['nome_produto']}', style: const TextStyle(fontSize: 14), overflow: TextOverflow.ellipsis),
+                                  ),
                                   Text('R\$ ${((item['preco_unitario'] ?? 0) * (item['quantidade'] ?? 1)).toStringAsFixed(2)}'),
                                 ],
                               ),
@@ -151,7 +186,7 @@ class PedidosScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Taxa de Entrega:', style: const TextStyle(fontSize: 14)),
+                              const Text('Taxa de Entrega:', style: TextStyle(fontSize: 14)),
                               Text('R\$ ${((pedido['taxa_entrega'] ?? 0)).toStringAsFixed(2)}'),
                             ],
                           ),
@@ -159,56 +194,100 @@ class PedidosScreen extends StatelessWidget {
                           const Divider(),
                           const SizedBox(height: 8),
                           Text('📍 Endereço: ${pedido['endereco']}', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                          // Text('📞 WhatsApp: ${pedido['telefone_cliente']}', style: const TextStyle(fontSize: 13, color: Colors.black54)),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 24),
 
                           // =======================================================================
-                          // BOTÕES DE AÇÃO: Controlam a esteira de status do pedido
+                          // BOTÕES DE AÇÃO RESPONSIVOS: Acabou a briga de espaço sô!
                           // =======================================================================
-                          Row(
-                            children: [
-                              // Botão de Cancelar (Apenas se não foi entregue ou já cancelado)
-                              if (status != 'entregue' && status != 'cancelado')
-                                TextButton(
-                                  onPressed: () => _atualizarStatus(pedidoId, 'cancelado'),
-                                  child: const Text('Recusar/Cancelar', style: TextStyle(color: Colors.redAccent)),
+                          ehCelularGeral
+                              ? Column(
+                                  // 📱 AÇÕES NO MOBILE: Empilhados verticalmente sô!
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (config['proximo'] != null) ...[
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: config['cor'],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        onPressed: () => _atualizarStatus(pedidoId, config['proximo']),
+                                        child: Text(config['botao'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        if (status != 'entregue' && status != 'cancelado')
+                                          TextButton.icon(
+                                            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                                            icon: const Icon(Icons.cancel_outlined, size: 18),
+                                            onPressed: () => _atualizarStatus(pedidoId, 'cancelado'),
+                                            label: const Text('Recusar Pedido'),
+                                          ),
+                                        OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(0xFFE65100),
+                                            side: const BorderSide(color: Color(0xFFE65100)),
+                                          ),
+                                          icon: const Icon(Icons.print_rounded, size: 18),
+                                          label: const Text('Imprimir'),
+                                          onPressed: () {
+                                            imprimirPedidoWeb(
+                                              estabelecimento: pedido['estabelecimento_id'],
+                                              numeroPedido: pedido['pedido'],
+                                              nomeCliente: pedido['nome_cliente'],
+                                              tipoEntrega: pedido['endereco'],
+                                              formaPagamento: pedido['forma_pagamento'],
+                                              itens: pedido['itens'],
+                                              total: total,
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  // 🖥️ AÇÕES NA WEB: Mantém a linha limpa com spacers sô!
+                                  children: [
+                                    if (status != 'entregue' && status != 'cancelado')
+                                      TextButton(
+                                        onPressed: () => _atualizarStatus(pedidoId, 'cancelado'),
+                                        child: const Text('Recusar/Cancelar', style: TextStyle(color: Colors.redAccent)),
+                                      ),
+                                    const Spacer(),
+                                    IconButton(
+                                      icon: const Icon(Icons.print_rounded, color: Color(0xFFE65100)),
+                                      tooltip: 'Imprimir Cupom',
+                                      onPressed: () {
+                                        imprimirPedidoWeb(
+                                          estabelecimento: pedido['estabelecimento_id'],
+                                          numeroPedido: pedido['pedido'],
+                                          nomeCliente: pedido['nome_cliente'],
+                                          tipoEntrega: pedido['endereco'],
+                                          formaPagamento: pedido['forma_pagamento'],
+                                          itens: pedido['itens'],
+                                          total: total,
+                                        );
+                                      },
+                                    ),
+                                    const Spacer(),
+                                    if (config['proximo'] != null)
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: config['cor'],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        onPressed: () => _atualizarStatus(pedidoId, config['proximo']),
+                                        child: Text(config['botao']),
+                                      ),
+                                  ],
                                 ),
-                              const Spacer(),
-
-                              IconButton(
-                                icon: const Icon(Icons.print_rounded, color: Color(0xFFE65100)),
-                                onPressed: () {
-                                  // Dispara a impressão que monta o cupom na hora!
-                                  imprimirPedidoWeb(
-                                    estabelecimento: pedido['estabelecimento_id'],
-                                    numeroPedido: pedido['pedido'],
-                                    nomeCliente: pedido['nome_cliente'],
-                                    tipoEntrega: pedido['endereco'],
-                                    formaPagamento: pedido['forma_pagamento'],
-                                    itens: pedido['itens'],
-                                    // itens:
-                                    // [
-                                    //   {'qtd': 2, 'nome': 'Pastel de Carne', 'preco': '14,00'},
-                                    //   {'qtd': 1, 'nome': 'Coca-Cola Lata', 'preco': '6,00'},
-                                    // ],
-                                    total: total,
-                                  );
-                                },
-                              ),
-                              const Spacer(),
-                              // Botão Dinâmico de Avanço
-                              if (config['proximo'] != null)
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: config['cor'],
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  onPressed: () => _atualizarStatus(pedidoId, config['proximo']),
-                                  child: Text(config['botao']),
-                                ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -231,7 +310,6 @@ class PedidosScreen extends StatelessWidget {
     required List<dynamic> itens,
     required double total,
   }) {
-    // 📝 1. Montamos a estrutura do cupom formatada para bobina térmica
     String conteudoHtml =
         '''
     <html>
@@ -239,43 +317,33 @@ class PedidosScreen extends StatelessWidget {
         <style>
           @page { size: auto; margin: 0mm; }
           body { 
-            font-family: 'Courier New', Courier, monospace; /* Fonte estilo cupom sô */
-            width: 280px; /* Largura ideal para bobinas de 80mm */
+            font-family: 'Courier New', Courier, monospace;
+            width: 280px;
             margin: 10px;
             font-size: 12px;
             color: #000;
           }
           .centralizado { text-align: center; }
           .linha { border-bottom: 1px dashed #000; margin: 8px 0; }
-          .item { display: flex; main-axis-alignment: space-between; }
+          .item { display: flex; justify-content: space-between; }
           .negrito { font-weight: bold; }
         </style>
       </head>
       <body>
         <div class="centralizado negrito" style="font-size: 16px;">🔥 PAINEL ALIUAI 🔥</div>
         <div class="centralizado">Pedido: #$numeroPedido</div>
-        
-        
         <div class="linha"></div>
         <div><span class="negrito">Cliente:</span> $nomeCliente</div>
         <div><span class="negrito">Operação:</span> $tipoEntrega</div>
-         <div><span class="negrito">Pagamento:</span> $formaPagamento</div>
+        <div><span class="negrito">Pagamento:</span> $formaPagamento</div>
         <div class="linha"></div>
-
-        
         <div class="negrito">ITENS DO PEDIDO:</div>
-  ''';
+    ''';
 
-    // Loop para listar os produtos do carrinho
     for (var itemDynamic in itens) {
-      // Forçamos o Dart a entender o item como um mapa de chave e valor
       final item = itemDynamic as Map<String, dynamic>;
-
-      // Buscamos os campos exatamente como você salvou no banco (ajuste os nomes se necessário sô!)
       final int qtd = item['quantidade'] ?? 1;
       final String nome = item['nome_produto'] ?? 'Produto';
-
-      // Tratamento para o preço não quebrar se vier double, int ou String sô
       final double precoOriginal = (item['preco_unitario'] ?? 0.0).toDouble();
       final String precoFormatado = precoOriginal.toStringAsFixed(2).replaceAll('.', ',');
 
@@ -285,7 +353,7 @@ class PedidosScreen extends StatelessWidget {
         <span>${qtd}x $nome</span>
         <span>R\$ $precoFormatado</span>
       </div>
-    ''';
+      ''';
     }
 
     conteudoHtml +=
@@ -300,15 +368,13 @@ class PedidosScreen extends StatelessWidget {
         <br><br>
       </body>
     </html>
-  ''';
+    ''';
 
-    // 🚀 2. A MÁGICA WEB: Cria uma janela oculta e manda imprimir direto sô!
     final janelaImpressao = web.window.open('', '_blank', 'width=400,height=600');
     if (janelaImpressao != null) {
       janelaImpressao.document.write(conteudoHtml.toJS);
       janelaImpressao.document.close();
 
-      // Pequeno delay para garantir que o HTML carregou na janelinha antes de abrir o print
       web.window.setTimeout(
         () {
           janelaImpressao.print();
