@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:html_editor_enhanced/html_editor.dart'; // 🔥 Import do editor rico sô!
 
 class PainelUtilidadesPage extends StatefulWidget {
   const PainelUtilidadesPage({super.key});
@@ -17,6 +18,10 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
   final _tituloController = TextEditingController();
   final _subtituloController = TextEditingController();
   final _detalhesController = TextEditingController();
+
+  // 🔥 Controlador exclusivo do Editor HTML sô!
+  final HtmlEditorController _htmlEditorController = HtmlEditorController();
+
   String? _urlImagemEvento;
 
   // 🔴 VARIÁVEIS PARA A CIDADE SELECIONADA
@@ -50,13 +55,17 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
     setState(() => _salvando = true);
 
     try {
+      // 🔥 O PULO DO GATO SÊNIOR: Antes de salvar, extraímos o texto com as tags HTML do editor!
+      final textoHtml = await _htmlEditorController.getText();
+      _detalhesController.text = textoHtml;
+
       final dados = {
         'tipo': tipo,
         'cidade_id': _idCidadeSelecionada, // 🔴 SALVA O ID DA CIDADE
         'cidade_nome': _nomeCidadeSelecionada, // Facilita se precisar exibir o nome direto
         'titulo': _tituloController.text.trim(),
         'subtitulo': _subtituloController.text.trim(),
-        'detalhes': _detalhesController.text.trim(),
+        'detalhes': _detalhesController.text.trim(), // Salva o HTML purinho sô!
         'imagem': tipo == 'evento' ? (_urlImagemEvento ?? '') : '',
         'criado_em': FieldValue.serverTimestamp(),
       };
@@ -80,8 +89,8 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
     _tituloController.clear();
     _subtituloController.clear();
     _detalhesController.clear();
+    _htmlEditorController.clear(); // 🔥 Limpa o editor de texto rico também sô!
     _urlImagemEvento = null;
-    // Opcional: manter a cidade selecionada para o admin cadastrar vários da mesma cidade em sequência
   }
 
   @override
@@ -169,7 +178,6 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
                           onChanged: (novoId) {
                             setState(() {
                               _idCidadeSelecionada = novoId;
-                              // Encontra o nome da cidade para salvar junto se quiser
                               var docSelecionado = cidadesDocs.firstWhere((d) => d.id == novoId);
                               _nomeCidadeSelecionada = (docSelecionado.data() as Map<String, dynamic>)['nome'];
                             });
@@ -184,13 +192,17 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
                     const SizedBox(height: 16),
                     _construirInput(controller: _subtituloController, label: labelSubtitulo),
                     const SizedBox(height: 16),
-                    _construirInput(controller: _detalhesController, label: labelDetalhes, maxLines: 4),
+
+                    // 🔥 Passamos o htmlController aqui! Quando ele vai, o método ativa o modo Rich Text sô!
+                    _construirInput(controller: _detalhesController, label: labelDetalhes, maxLines: 4, htmlController: _htmlEditorController),
                     const SizedBox(height: 16),
 
                     if (mostrarUpload) ...[
                       ElevatedButton.icon(
                         onPressed: () {
-                          _urlImagemEvento = "https://via.placeholder.com/150";
+                          setState(() {
+                            _urlImagemEvento = "https://placehold.co/150"; // Trocado a URL morta sô!
+                          });
                         },
                         icon: const Icon(Icons.image),
                         label: const Text('Subir Banner do Evento'),
@@ -219,11 +231,7 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
         Expanded(
           flex: 6,
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('utilidades_locais')
-                .where('tipo', isEqualTo: tipo)
-                // .orderBy('criado_em', descending: true) // Reative quando o índice composto estiver pronto
-                .snapshots(),
+            stream: FirebaseFirestore.instance.collection('utilidades_locais').where('tipo', isEqualTo: tipo).snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -279,7 +287,54 @@ class _PainelUtilidadesPageState extends State<PainelUtilidadesPage> with Single
     );
   }
 
-  Widget _construirInput({required TextEditingController controller, required String label, int maxLines = 1}) {
+  // 🛠️ MÉTODO DE INPUT ATUALIZADO E FLEXÍVEL SÔ!
+  Widget _construirInput({
+    required TextEditingController controller,
+    required String label,
+    int maxLines = 1,
+    HtmlEditorController? htmlController, // 🔥 Adicionado o controller opcional
+  }) {
+    // Se passarmos o htmlController, ele monta o editor rico sô!
+    if (htmlController != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2D2D3A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[700]!),
+            ),
+            child: HtmlEditor(
+              controller: htmlController,
+              htmlEditorOptions: HtmlEditorOptions(
+                hint: "Digite os detalhes aqui sô...",
+                initialText: controller.text,
+                darkMode: true, // Combina perfeitamente com o tema escuro do painel sô!
+              ),
+              htmlToolbarOptions: const HtmlToolbarOptions(
+                toolbarPosition: ToolbarPosition.aboveEditor,
+                toolbarType: ToolbarType.nativeScrollable,
+                buttonColor: Colors.white,
+                dropdownBackgroundColor: Color(0xFF2D2D3A),
+                // ✂️ Cortamos a linha do imagePopoverToolbarOptions daqui sô!
+                defaultToolbarButtons: [
+                  FontButtons(bold: true, italic: true, underline: true, clearAll: true),
+                  ParagraphButtons(lineHeight: false, caseConverter: false, textDirection: false),
+                  ListButtons(ul: true, ol: true),
+                  // 🔥 Explicitamente deixamos de fora os "InsertButtons" (que trazem link de imagem/vídeo)
+                ],
+              ),
+              otherOptions: const OtherOptions(height: 200),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Caso contrário, continua renderizando o input padrão escuro sô
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
