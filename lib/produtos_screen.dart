@@ -193,7 +193,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Gerenciador de Cardápio / Catálogo',
+                    '📦 Gerenciador Produtos',
                     style: TextStyle(fontSize: ehCelularTop ? 22 : 28, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   const SizedBox(height: 4),
@@ -294,7 +294,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   print(snapshot.error);
-                  return const Center(child: Text('Erro ao carregar os dados.'));
+                  return const Center(child: Text('Erro ao carregar os dados Produtos Screen.'));
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
@@ -352,6 +352,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                     double preco = (dados['preco'] ?? 0.0).toDouble();
                     bool disponivel = dados['disponivel'] ?? true;
                     String descricao = dados['descricao'] ?? '';
+                    String codigo = dados['codigo'] ?? '';
                     String categoriaProd = dados['categoria_produto'] ?? 'Outros';
 
                     return Card(

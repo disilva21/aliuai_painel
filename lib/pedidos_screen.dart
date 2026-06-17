@@ -38,14 +38,20 @@ class PedidosScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pedidos em Tempo Real 🔔', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('🔔 Pedidos em Tempo Real', style: TextStyle(fontWeight: FontWeight.bold)),
         automaticallyImplyLeading: false,
         foregroundColor: Colors.black87,
         elevation: 0,
         backgroundColor: const Color(0xFFF5F5F5),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('pedidos').where('estabelecimento_id', isEqualTo: lojaId).orderBy('criado_em', descending: true).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('pedidos')
+            .where('estabelecimento_id', isEqualTo: lojaId)
+            .where('forma_pagamento', isNotEqualTo: 'fiado')
+            .orderBy('forma_pagamento')
+            .orderBy('criado_em', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             print(snapshot.error);

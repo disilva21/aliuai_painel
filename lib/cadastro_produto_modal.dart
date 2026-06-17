@@ -22,6 +22,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
   final _nomeController = TextEditingController();
   final _precoController = TextEditingController();
   final _descricaoController = TextEditingController();
+  final _codigoController = TextEditingController();
 
   final _storage = FirebaseStorage.instance;
   final _firestore = FirebaseFirestore.instance;
@@ -46,6 +47,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
       _nomeController.text = widget.produtoExistente!['nome'] ?? '';
       _precoController.text = widget.produtoExistente!['preco'].toString();
       _descricaoController.text = widget.produtoExistente!['descricao'] ?? '';
+      _codigoController.text = widget.produtoExistente!['codigo'] ?? '';
       _fotoUrl = widget.produtoExistente!['foto_url'] ?? '';
       _categoriaSelecionada = widget.produtoExistente!['categoria_id']; // Resgata o slug salvo sô
     }
@@ -137,11 +139,14 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     final precoTexto = _precoController.text.trim().replaceAll(',', '.');
     final precoDouble = double.tryParse(precoTexto) ?? 0.0;
 
+    // 🕵️‍♂️ Captura o código digitado ou bipado pelo lojista sô!
+    final String? codigoDigitado = _codigoController.text.trim().isNotEmpty ? _codigoController.text.trim() : null;
+
     try {
       // 🧠 Extrai os dados exatos do item selecionado na lista filtrada sô!
       final catObjeto = _categoriasFiltradas.firstWhere((cat) => cat['slug'] == _categoriaSelecionada);
-      final String nomeCategoriaBonito = catObjeto['nome']; // Ex: "Refeições / Prato Feito"
-      final String slugCategoriaMinusc = catObjeto['slug']; // Ex: "refeicoes_prato_feito"
+      final String nomeCategoriaBonito = catObjeto['nome'];
+      final String slugCategoriaMinusc = catObjeto['slug'];
 
       final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
       String cidadeIdDaLoja = '';
@@ -151,23 +156,49 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         cidadeIdDaLoja = dadosLoja?['cidade_id'] ?? '';
       }
 
+      // 📦 Dados base que servem tanto para criar quanto para editar sô!
       final produtoData = {
         'nome': _nomeController.text.trim(),
         'preco': precoDouble,
         'descricao': _descricaoController.text.trim(),
-
-        // 🚨 AS DUAS CHAVES SINCROZINADAS AQUI SÔ:
-        'categoria_id': slugCategoriaMinusc, // 🔥 Salva minúsculo pro FILTRO funcionar!
-        'categoria_produto': nomeCategoriaBonito, // Salva o nome bonito para a tela do cliente!
-
+        'categoria_id': slugCategoriaMinusc,
+        'categoria_produto': nomeCategoriaBonito,
         'foto_url': _fotoUrl,
       };
 
+      // 🍟 Ponteiro para a nossa subcoleção de produtos
+      final subColecaoProdutos = _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos');
+
+      // 🛠️ MODO EDIÇÃO: O produto já existe na roça sô!
       if (widget.produtoExistente != null) {
-        await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').doc(widget.idProduto).update({...produtoData, 'alterado_em': FieldValue.serverTimestamp()});
-      } else {
-        await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').add({
+        await subColecaoProdutos.doc(widget.idProduto).update({
           ...produtoData,
+          // Se você deixar ele editar o código, salvamos o novo digitado ou mantém o ID antigo se for marmita
+          'codigo': codigoDigitado ?? widget.idProduto,
+          'alterado_em': FieldValue.serverTimestamp(),
+        });
+      }
+      // 🍳 MODO CRIAÇÃO: Produto novinho chegando (Marmita ou Código de barras)
+      else {
+        DocumentReference docRef;
+        String codigoFinal;
+
+        // Se o lojista preencheu o código de barras sô!
+        if (codigoDigitado != null) {
+          codigoFinal = codigoDigitado;
+          docRef = subColecaoProdutos.doc(codigoFinal); // O ID do doc vira o código de barras!
+        }
+        // Se deixou em branco (A Marmita sô!)
+        else {
+          docRef = subColecaoProdutos.doc(); // Firestore gera o ID aleatório único na memória!
+          codigoFinal = docRef.id; // O código interno vira o próprio ID do documento!
+        }
+
+        // Salva direto usando o .set() com custo zero de leitura sô!
+        await docRef.set({
+          ...produtoData,
+          'id': docRef.id, // Deixa gravado o ID pra facilitar buscas futuras
+          'codigo': codigoFinal, // Carimba o código final (seja de barras ou aleatório)
           'disponivel': true,
           'criado_em': FieldValue.serverTimestamp(),
           'estabelecimento_id': widget.lojaId,
@@ -286,6 +317,22 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _codigoController,
+                        keyboardType: TextInputType.text,
+                        autofocus: true, // 🤠 Já nasce focado pro lojista só bipar!
+                        decoration: const InputDecoration(labelText: 'Código de Barras (Opcional) 🏷️', hintText: 'Bipe o código de barras ou deixe em branco', border: OutlineInputBorder()),
+                        // 🚀 O PULO DO GATO: Quando o leitor bipa, ele dá "Enter" e cai aqui na hora sô!
+                        onSubmitted: (valor) {
+                          if (valor.isNotEmpty) {
+                            // Aqui você pode disparar alguma lógica ou só deixar o valor guardado
+                            // pro lojista clicar em salvar depois sô!
+                            print('Bipou o código: $valor');
+                          }
+                        },
+                      ),
+
                       const SizedBox(height: 16),
 
                       // DESCRIÇÃO DO PRODUTO

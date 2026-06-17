@@ -1,17 +1,20 @@
+import 'package:aliuai_painel/admin/central_suporte_admin_aba.dart';
+
 import 'package:aliuai_painel/admin/painel_utilidades_screen.dart';
 import 'package:aliuai_painel/admin_lojas_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+class AdminHomeScreen extends StatefulWidget {
+  const AdminHomeScreen({super.key});
 
   @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+  State<AdminHomeScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends State<AdminHomeScreen> {
   int _abaSelecionada = 0;
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
@@ -319,101 +322,125 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
 
     return Scaffold(
-      body: Row(
+      body: Stack(
         children: [
-          // SIDEBAR MASTER (MENU LATERAL DO ADMIN)
-          Container(
-            width: 260,
-            color: const Color(0xFF1E1E26),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'AliUai 🌌',
-                        style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          Row(
+            children: [
+              // SIDEBAR MASTER (MENU LATERAL DO ADMIN)
+              Container(
+                width: 260,
+                color: const Color(0xFF1E1E26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'AliUai 🌌',
+                            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(_userRole == 'admin' ? 'Painel Master Admin' : 'Painel de Consultor / Vendedor', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(_userRole == 'admin' ? 'Painel Master Admin' : 'Painel de Consultor / Vendedor', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                const Divider(color: Colors.white12, height: 1),
-                const SizedBox(height: 16),
-
-                // ITEM 1: LISTA DE LOJAS CADASTRADAS
-                ListTile(
-                  leading: Icon(Icons.store_mall_directory, color: _abaSelecionada == 0 ? Colors.cyanAccent : Colors.grey),
-                  title: Text(
-                    _userRole == 'admin' ? 'Todas as Lojas' : 'Minhas Lojas Cadastradas',
-                    style: TextStyle(color: _abaSelecionada == 0 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
-                  ),
-                  tileColor: _abaSelecionada == 0 ? Colors.white.withOpacity(0.05) : Colors.transparent,
-                  onTap: () => setState(() => _abaSelecionada = 0),
-                ),
-
-                // ITEM 2: BOTÃO DIRETO DE CADASTRO (AÇÃO RÁPIDA)
-                ListTile(
-                  leading: const Icon(Icons.add_circle_outline, color: Colors.greenAccent),
-                  title: const Text(
-                    'Cadastrar Loja',
-                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-                  ),
-                  onTap: _abrirModalCadastroLoja,
-                ),
-
-                // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
-                if (_userRole == 'admin')
-                  ListTile(
-                    leading: const Icon(Icons.person_add_alt_1, color: Colors.lightBlueAccent),
-                    title: const Text(
-                      'Cadastrar Vendedor',
-                      style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
                     ),
-                    onTap: _abrirModalCadastroUsuario,
-                  ),
+                    const Divider(color: Colors.white12, height: 1),
+                    const SizedBox(height: 16),
 
-                // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
-                if (_userRole == 'admin')
-                  ListTile(
-                    leading: const Icon(Icons.location_city, color: Colors.lightBlueAccent),
-                    title: const Text(
-                      'Utilidades Locais',
-                      style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                    // ITEM 1: LISTA DE LOJAS CADASTRADAS
+                    ListTile(
+                      leading: Icon(Icons.store_mall_directory, color: _abaSelecionada == 0 ? Colors.cyanAccent : Colors.grey),
+                      title: Text(
+                        _userRole == 'admin' ? 'Todas as Lojas' : 'Minhas Lojas Cadastradas',
+                        style: TextStyle(color: _abaSelecionada == 0 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      tileColor: _abaSelecionada == 0 ? Colors.white.withOpacity(0.05) : Colors.transparent,
+                      onTap: () => setState(() => _abaSelecionada = 0),
                     ),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PainelUtilidadesPage()));
-                    },
-                  ),
-                const Spacer(),
-                const Divider(color: Colors.white12, height: 1),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.redAccent),
-                  title: const Text(
-                    'Sair do Sistema',
-                    style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
-                  ),
-                  onTap: _logout,
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
 
-          // CONTEÚDO PRINCIPAL (INDEXED STACK)
-          Expanded(
-            child: IndexedStack(
-              index: _abaSelecionada,
-              children: [
-                // ✨ REGRA INJETADA AQUI: Repassa dinamicamente as credenciais de restrição para a sub-tela
-                AdminLojasScreen(vendedorId: _userRole == 'vendedor' ? _currentUserUid : null),
-              ],
-            ),
+                    // ITEM 2: BOTÃO DIRETO DE CADASTRO (AÇÃO RÁPIDA)
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline, color: Colors.greenAccent),
+                      title: const Text(
+                        'Cadastrar Loja',
+                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      onTap: _abrirModalCadastroLoja,
+                    ),
+
+                    // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
+                    if (_userRole == 'admin')
+                      ListTile(
+                        leading: const Icon(Icons.person_add_alt_1, color: Colors.lightBlueAccent),
+                        title: const Text(
+                          'Cadastrar Vendedor',
+                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                        ),
+                        onTap: _abrirModalCadastroUsuario,
+                      ),
+
+                    // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
+                    if (_userRole == 'admin')
+                      ListTile(
+                        leading: const Icon(Icons.location_city, color: Colors.lightBlueAccent),
+                        title: const Text(
+                          'Utilidades Locais',
+                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _abaSelecionada = 2;
+                          });
+                          // Navigator.push(context, MaterialPageRoute(builder: (context) => const PainelUtilidadesPage()));
+                        },
+                      ),
+
+                    // ITEM 2: BOTÃO DIRETO DE CADASTRO (AÇÃO RÁPIDA)
+                    ListTile(
+                      leading: const Icon(Icons.chat_bubble_rounded, color: Colors.greenAccent),
+                      title: const Text(
+                        'Chat Suporte',
+                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      onTap: () {
+                        setState(() {
+                          _abaSelecionada = 1; // 👈 Troque o "2" pelo número da posição que o suporte vai ficar no seu IndexedStack sô!
+                        });
+                      },
+                    ),
+                    const Spacer(),
+                    const Divider(color: Colors.white12, height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.redAccent),
+                      title: const Text(
+                        'Sair do Sistema',
+                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+                      ),
+                      onTap: _logout,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+
+              // CONTEÚDO PRINCIPAL (INDEXED STACK)
+              Expanded(
+                child: IndexedStack(
+                  index: _abaSelecionada,
+                  children: [
+                    // ✨ REGRA INJETADA AQUI: Repassa dinamicamente as credenciais de restrição para a sub-tela
+                    AdminLojasScreen(vendedorId: _userRole == 'vendedor' ? _currentUserUid : null),
+                    CentralSuporteAdminAba(),
+                    PainelUtilidadesPage(),
+                  ],
+                ),
+              ),
+            ],
           ),
+          // const BotaoSuporteFlutuante(),
         ],
       ),
     );

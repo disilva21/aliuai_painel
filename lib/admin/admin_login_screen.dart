@@ -70,7 +70,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         // Garante que a conta não foi desativada e que ele pertence à equipe master
         if (dados['ativo'] == true && (dados['role'] == 'admin' || dados['role'] == 'vendedor')) {
           if (mounted) {
-            Navigator.pushNamedAndRemoveUntil(context, '/admin/dashboard', (route) => false);
+            Navigator.pushNamedAndRemoveUntil(context, '/admin/home', (route) => false);
           }
         } else {
           await FirebaseAuth.instance.signOut();

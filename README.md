@@ -22,3 +22,11 @@ samples, guidance on mobile development, and a full API reference.
 flutter build web --release
 firebase deploy --only hosting:painel-aliuai
 firebase deploy --only hosting:aliuai
+
+## Deploy PROD
+flutter build web -t lib/main_prod.dart html --release
+firebase deploy --only hosting:painel-aliuai --project aliuai
+
+## Deploy DEV
+flutter build web -t lib/main_dev.dart html --release
+firebase deploy --only hosting:painel-aliuai-dev --project aliuai-dev

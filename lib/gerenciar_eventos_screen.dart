@@ -91,7 +91,7 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
               onPressed: () {
                 Navigator.pop(context); // Fecha a modal
 
-                // MUDANÇA DE ABA: Se a sua DashboardScreen gerencia as abas,
+                // MUDANÇA DE ABA: Se a sua HomeScreen gerencia as abas,
                 // você pode disparar um callback ou avisar o lojista para ir até lá.
                 ScaffoldMessenger.of(
                   context,
@@ -114,11 +114,16 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
-        title: const Text(
-          'Meus Eventos Cadastrados',
-          style: TextStyle(color: Color(0xFF2D2D3A), fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            const Text(
+              '📅 Meus Eventos',
+              style: TextStyle(color: Color(0xFF2D2D3A), fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         iconTheme: const IconThemeData(color: Color(0xFF2D2D3A)),
+        automaticallyImplyLeading: false,
         actions: [
           // Botão flutuante no topo para criar um novo evento
           Padding(
@@ -130,7 +135,7 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Novo Evento sô!', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('Novo Evento', style: TextStyle(fontWeight: FontWeight.bold)),
               onPressed: _planoAtual == 'indefinido'
                   ? _mostrarAlertaPagamento
                   : () {
@@ -139,6 +144,7 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
+                        isDismissible: false,
                         builder: (context) {
                           return FractionallySizedBox(
                             widthFactor: 0.8,
@@ -155,7 +161,7 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
                                     onPressed: () => Navigator.pop(context),
                                   ),
                                   title: const Text(
-                                    'Novo Evento sô!', // Título fixo de cadastro
+                                    'Novo Evento', // Título fixo de cadastro
                                     style: TextStyle(color: Color(0xFF2D2D3A), fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                                 ),

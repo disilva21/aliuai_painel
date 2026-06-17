@@ -41,6 +41,10 @@ class CheckoutPixScreen extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
                   }
 
+                  if (snapshot.hasError) {
+                    print(snapshot.error);
+                    return Center(child: Text('Erro ao carregar devedores sô: ${snapshot.error}'));
+                  }
                   if (!snapshot.hasData || !snapshot.data!.exists) {
                     return const Center(child: Text('Não foi possível carregar os dados do pagamento. 😢'));
                   }

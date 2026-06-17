@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 class OnboardingDialog extends StatefulWidget {
   const OnboardingDialog({super.key});
 
-  static void mostrar(BuildContext context) {
-    showDialog(
+  static Future<void> mostrar(BuildContext context) async {
+    await showDialog(
       context: context,
       barrierDismissible: false, // Força o lojista a ver os passos sô!
       builder: (context) => const OnboardingDialog(),

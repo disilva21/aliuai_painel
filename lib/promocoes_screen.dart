@@ -386,9 +386,17 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
                                           Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                           const SizedBox(height: 4),
                                           emPromocao
-                                              ? Text(
-                                                  'De  R\$ ${precoBase.toStringAsFixed(2)}  por  R\$ ${precoPromo.toStringAsFixed(2)}',
-                                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                                              ? Row(
+                                                  children: [
+                                                    Text(
+                                                      'De R\$ ${precoBase.toStringAsFixed(2)} ',
+                                                      style: const TextStyle(color: Colors.grey, decoration: TextDecoration.lineThrough, fontSize: 13),
+                                                    ),
+                                                    Text(
+                                                      ' por  R\$ ${precoPromo.toStringAsFixed(2)}',
+                                                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
                                                 )
                                               : Text('R\$ ${precoBase.toStringAsFixed(2)}', style: TextStyle(color: Colors.grey[700])),
                                         ],

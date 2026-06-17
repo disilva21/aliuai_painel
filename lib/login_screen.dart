@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // Manda o lojista para o painel dele (Dashboard do Lojista)
             Navigator.pushReplacementNamed(
               context,
-              '/dashboard', // Ou a rota do dashboard do seu lojista comum
+              '/home', // Ou a rota do home do seu lojista comum
               arguments: lojaId,
             );
           }

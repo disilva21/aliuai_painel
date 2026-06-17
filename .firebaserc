@@ -1,5 +1,15 @@
 {
   "projects": {
-    "default": "aliuai"
-  }
+    "default": "aliuai-dev"
+  },
+  "targets": {
+    "aliuai-dev": {
+      "hosting": {
+        "dev": [
+          "aliuai-dev"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

@@ -1,5 +1,5 @@
 name: aliuai_painel
-description: "A new Flutter project."
+description: "Painel do Parceiro AliUai"
 
 publish_to: 'none' 
 
@@ -35,7 +35,8 @@ dependencies:
   fl_chart: ^0.66.0
   audioplayers: ^6.7.1
   font_awesome_flutter: ^11.0.0
-  
+  package_info_plus: ^9.0.1
+  flutter_html: ^3.0.0    
     
 dev_dependencies:
   flutter_test:
@@ -52,6 +53,7 @@ flutter:
     - assets/logo/
     - assets/logo/logo_aliuai.png
     - assets/sounds/notificacao.mp3
+    - assets/sounds/chat.mp3
 
 flutter_native_splash:
   # 1. A cor de fundo da tela inteira (o fundo escuro do Aliuai)

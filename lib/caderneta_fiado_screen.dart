@@ -23,6 +23,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
   final List<String> _dividasSelecionadasIds = []; // Controla os checkboxes de abatimento
   final TextEditingController _abatimentoController = TextEditingController();
   bool _processandoAbatimento = false;
+  int? quantidadeCliente = 5;
 
   // 🔍 Controles do Filtro e Paginação Dinâmica sô
   final TextEditingController _buscaController = TextEditingController();
@@ -121,6 +122,16 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           final clienteRef = _firestore.collection('clientes_fiado').doc(cliente.id);
                           batch.update(clienteRef, {'saldo_devedor': FieldValue.increment(valorCompra), 'atualizado_em': FieldValue.serverTimestamp()});
 
+                          final novoPedidoRef = _firestore.collection('pedidos').doc(); // Gera um ID novo na fiação
+                          batch.set(novoPedidoRef, {
+                            'estabelecimento_id': widget.lojaId, // 🏪 ID da loja para filtrar na tela de métricas
+                            'criado_em': FieldValue.serverTimestamp(), // 🕒 Data/Hora para o filtro de "hoje"
+                            'forma_pagamento': 'fiado', // 💳 CHAVE CORRETA! O Canta Caixa caça 'metodo_pagamento' sô!
+                            'total': valorCompra, // 💰 O valor total da venda
+                            'itens': [
+                              {'titulo': descricaoCompra, 'quantidade': 1},
+                            ],
+                          });
                           await batch.commit();
 
                           final snapAtualizado = await clienteRef.get();
@@ -184,7 +195,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           'Cadastrar Cliente',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        onPressed: () => _abrirModalNovoCliente(),
+                        onPressed: () => _abrirModalCliente(),
                       ),
                     ),
                   ],
@@ -214,7 +225,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                         'Cadastrar Cliente',
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
-                      onPressed: () => _abrirModalNovoCliente(),
+                      onPressed: () => _abrirModalCliente(),
                     ),
                   ],
                 ),
@@ -440,13 +451,20 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(cliente.nome, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                Text(cliente.nome, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
                                 Text(
                                   cliente.telefone.isEmpty ? 'Sem telefone' : '📞 ${FormatarTelefone.formatarTelefone(cliente.telefone)}', // 🔥 Adicionado aqui!
                                   style: const TextStyle(color: Colors.grey, fontSize: 13),
                                 ),
+                                const SizedBox(height: 4),
+                                Text('📍${cliente.endereco}', style: const TextStyle(fontSize: 12)),
                               ],
                             ),
+                          ),
+                          IconButton(
+                            onPressed: () => _abrirModalCliente(clienteParaEditar: cliente),
+                            icon: Icon(Icons.edit),
                           ),
                         ],
                       ),
@@ -513,14 +531,21 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(cliente.nome, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                              Text(cliente.nome, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 4),
 
                               Text(
-                                cliente.telefone.isEmpty ? 'Sem telefone' : 'WhatsApp: ${FormatarTelefone.formatarTelefone(cliente.telefone)}', // 🔥 Adicionado aqui!
+                                cliente.telefone.isEmpty ? 'Sem telefone' : 'Celular: ${FormatarTelefone.formatarTelefone(cliente.telefone)}', // 🔥 Adicionado aqui!
                                 style: const TextStyle(color: Colors.grey),
                               ),
+                              const SizedBox(height: 4),
+
+                              Text('📍${cliente.endereco}', style: const TextStyle(fontSize: 12)),
                             ],
+                          ),
+                          IconButton(
+                            onPressed: () => _abrirModalCliente(clienteParaEditar: cliente),
+                            icon: Icon(Icons.edit),
                           ),
                         ],
                       ),
@@ -762,92 +787,174 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
     );
   }
 
-  void _abrirModalNovoCliente() {
-    final nomeCtrl = TextEditingController();
-    final foneCtrl = TextEditingController();
+  // 👥 Modal Unificado: Se [clienteParaEditar] for nulo, cria um novo. Se vier preenchido, edita sô!
+  void _abrirModalCliente({ClienteFiadoModel? clienteParaEditar}) {
+    final bool ehEdicao = clienteParaEditar != null;
+
+    final nomeCtrl = TextEditingController(text: ehEdicao ? clienteParaEditar.nome : '');
+    final foneCtrl = TextEditingController(text: ehEdicao ? clienteParaEditar.telefone : '');
     final enderecoCtrl = TextEditingController();
+
+    bool salvandoCliente = false;
+
+    // 🕵️‍♂️ Se for edição, busca o endereço direto do banco para não dar chabu com o Model sô!
+    if (ehEdicao) {
+      _firestore.collection('clientes_fiado').doc(clienteParaEditar.id).get().then((doc) {
+        if (doc.exists && doc.data() != null) {
+          final dados = doc.data()!;
+          if (dados.containsKey('endereco')) {
+            enderecoCtrl.text = dados['endereco'] ?? '';
+          }
+        }
+      });
+    }
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cadastrar Novo Cliente 👤', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nomeCtrl,
-              maxLength: 80,
-              decoration: const InputDecoration(labelText: 'Nome completo', counterText: ''),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: foneCtrl,
-              keyboardType: TextInputType.phone,
-              // 🔥 ADICIONADO: Limita a digitação para o tamanho do celular com máscara sô!
-              maxLength: 15,
-              decoration: const InputDecoration(
-                labelText: 'Telefone/WhatsApp',
-                hintText: '(31) 98888-7777', // Hint mais amigável sô!
-                counterText: '', // Esconde o contador de caracteres para o layout ficar limpo
-              ),
-              // 🛠️ A MÁGICA DA FORMATAÇÃO EM TEMPO REAL SÔ:
-              inputFormatters: [
-                TextInputFormatter.withFunction((oldValue, newValue) {
-                  // 1. Remove tudo o que não for número sô
-                  String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-                  // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
-                  if (newValue.text.length < oldValue.text.length) {
-                    return newValue;
-                  }
-
-                  String textoFormatado = "";
-
-                  // 2. Monta a máscara certinha sem espaços duplicados sô!
-                  if (texto.length > 0) {
-                    textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
-                  }
-                  if (texto.length > 2) {
-                    // Juntamos o fecha parêntese com o espaço padrão sô: ") "
-                    textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
-                  }
-                  if (texto.length > 7) {
-                    // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
-                    textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
-                  }
-
-                  return TextEditingValue(
-                    text: textoFormatado,
-                    selection: TextSelection.collapsed(offset: textoFormatado.length),
-                  );
-                }),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            title: Text(ehEdicao ? '✏️ Editar Cliente' : '👤 Novo Cliente', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeCtrl,
+                  maxLength: 80,
+                  decoration: const InputDecoration(labelText: 'Nome completo', counterText: ''),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: foneCtrl,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 15,
+                  decoration: const InputDecoration(labelText: 'Telefone/WhatsApp', hintText: '(31) 98888-7777', counterText: ''),
+                  inputFormatters: [
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+                      if (newValue.text.length < oldValue.text.length) return newValue;
+                      String textoFormatado = "";
+                      if (texto.length > 0) textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
+                      if (texto.length > 2) textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
+                      if (texto.length > 7) {
+                        textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
+                      }
+                      return TextEditingValue(
+                        text: textoFormatado,
+                        selection: TextSelection.collapsed(offset: textoFormatado.length),
+                      );
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: enderecoCtrl,
+                  maxLength: 120,
+                  decoration: const InputDecoration(labelText: 'Endereço', counterText: ''),
+                ),
+                const SizedBox(height: 16),
               ],
             ),
-            TextField(
-              controller: enderecoCtrl,
-              maxLength: 120,
-              decoration: const InputDecoration(labelText: 'Endereço', counterText: ''),
-            ),
-            const SizedBox(height: 16),
-          ],
+            actions: [
+              TextButton(onPressed: salvandoCliente ? null : () => Navigator.pop(context), child: const Text('Cancelar')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
+                onPressed: salvandoCliente
+                    ? null
+                    : () async {
+                        if (nomeCtrl.text.trim().isEmpty) return;
+
+                        setModalState(() => salvandoCliente = true);
+
+                        try {
+                          final dadosDoCliente = {
+                            'loja_id': widget.lojaId,
+                            'nome': nomeCtrl.text.trim(),
+                            'telefone': foneCtrl.text.trim(),
+                            'endereco': enderecoCtrl.text.trim(),
+                            'atualizado_em': FieldValue.serverTimestamp(),
+                          };
+
+                          // 📝 MODO EDIÇÃO sô!
+                          if (ehEdicao) {
+                            final clienteRef = _firestore.collection('clientes_fiado').doc(clienteParaEditar.id);
+                            await clienteRef.update(dadosDoCliente);
+
+                            // Atualiza o estado da tela principal para o lojista ver o nome novo na hora!
+                            final snapAtualizado = await clienteRef.get();
+                            if (snapAtualizado.exists && mounted) {
+                              setState(() {
+                                _clienteSelecionado = ClienteFiadoModel.fromFirestore(snapAtualizado);
+                              });
+                            }
+                          }
+                          // 🚀 MODO CRIAÇÃO (Com a trava dos 5 clientes sô!)
+                          else {
+                            final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
+                            String planoAtual = 'gratis';
+
+                            if (docLoja.exists) {
+                              planoAtual = (docLoja.data()?['plano_atual'] ?? 'gratis').toString().toLowerCase();
+                            }
+
+                            if (planoAtual != 'master') {
+                              final snapshotClientes = await _firestore.collection('clientes_fiado').where('loja_id', isEqualTo: widget.lojaId).get();
+
+                              if (snapshotClientes.docs.length >= 5) {
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  _mostrarAlertaPlanoMaster();
+                                }
+                                return;
+                              }
+                            }
+
+                            // Salva do zero com saldo zero sô
+                            await _firestore.collection('clientes_fiado').add({...dadosDoCliente, 'saldo_devedor': 0.0});
+                          }
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(ehEdicao ? 'Cliente atualizado com sucesso! 📝' : 'Cliente salvo com sucesso! 🎉'), backgroundColor: Colors.green));
+                          }
+                        } catch (e) {
+                          print("Erro ao processar cliente sô: $e");
+                        } finally {
+                          if (context.mounted) setModalState(() => salvandoCliente = false);
+                        }
+                      },
+                child: salvandoCliente
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(ehEdicao ? 'Salvar Alterações' : 'Salvar Cliente', style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // 🔥 FUNÇÃO AUXILIAR: Janela de Alerta convidando o lojista para dar o Upgrade!
+  void _mostrarAlertaPlanoMaster() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🚀 Limite do Plano Atingido sô!'),
+        content: const Text(
+          'No seu plano atual, você pode cadastrar até 5 clientes para testar a Caderneta de Fiado. '
+          'Para cadastrar clientes ilimitados e profissionalizar as suas contas de balcão, assine o **Plano Master**! 📒✨',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Depois sô')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
-            onPressed: () async {
-              if (nomeCtrl.text.trim().isEmpty) return;
-
-              await _firestore.collection('clientes_fiado').add({
-                'loja_id': widget.lojaId,
-                'nome': nomeCtrl.text.trim(),
-                'telefone': foneCtrl.text.trim(),
-                'saldo_devedor': 0.0,
-                'atualizado_em': FieldValue.serverTimestamp(),
-              });
-              if (context.mounted) Navigator.pop(context);
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              Navigator.pop(context);
+              // 💡 Aqui depois você pode redirecionar o homem direto pra sua tela de Planos sô!
             },
-            child: const Text('Salvar Cliente', style: TextStyle(color: Colors.white)),
+            child: const Text('Ver Planos 💎', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

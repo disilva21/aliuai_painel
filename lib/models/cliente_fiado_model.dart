@@ -7,14 +7,16 @@ class ClienteFiadoModel {
   final String telefone;
   final double saldoDevedor; // Saldo consolidado para busca rápida sô
   final DateTime? atualizadoEm;
+  final String? endereco;
 
-  ClienteFiadoModel({required this.id, required this.lojaId, required this.nome, required this.telefone, required this.saldoDevedor, this.atualizadoEm});
+  ClienteFiadoModel({required this.id, required this.lojaId, required this.nome, required this.telefone, required this.saldoDevedor, this.atualizadoEm, this.endereco});
 
   Map<String, dynamic> toMap() {
     return {
       'loja_id': lojaId,
       'nome': nome,
       'telefone': telefone,
+      'endereco': endereco,
       'saldo_devedor': saldoDevedor,
       'atualizado_em': atualizadoEm != null ? Timestamp.fromDate(atualizadoEm!) : FieldValue.serverTimestamp(),
     };
@@ -27,6 +29,7 @@ class ClienteFiadoModel {
       lojaId: dados['loja_id'] ?? '',
       nome: dados['nome'] ?? '',
       telefone: dados['telefone'] ?? '',
+      endereco: dados['endereco'] ?? '',
       saldoDevedor: (dados['saldo_devedor'] ?? 0.0).toDouble(),
       atualizadoEm: (dados['atualizado_em'] as Timestamp?)?.toDate(),
     );

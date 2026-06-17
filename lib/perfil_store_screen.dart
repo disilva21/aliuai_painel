@@ -30,6 +30,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
   final _fixoController = TextEditingController();
   final _tempoEntregaController = TextEditingController();
   final _taxaEntregaController = TextEditingController();
+  final _nomeContatoCtrl = TextEditingController();
 
   String? _estadoSelecionado;
   String? _cidadeSelecionada;
@@ -59,6 +60,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     _nomeController.dispose();
     _descricaoEditorController.clear();
     _enderecoController.dispose();
+    _nomeContatoCtrl.dispose();
     _whatsappController.dispose();
     _fixoController.dispose();
     _tempoEntregaController.dispose();
@@ -128,6 +130,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
             _nomeController.text = dados['nome'] ?? '';
             _descricaoInicial = dados['descricao'] ?? '';
             _enderecoController.text = dados['endereco'] ?? '';
+            _nomeContatoCtrl.text = dados['nome_contato'] ?? '';
             _whatsappController.text = dados['telefone_whatsapp'] ?? '';
             _fixoController.text = dados['telefone_fixo'] ?? '';
             _tempoEntregaController.text = dados['tempo_entrega'] ?? '30-45 min';
@@ -209,6 +212,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
         'nome': _nomeController.text.trim(),
         'descricao': htmlGerado,
         'endereco': _enderecoController.text.trim(),
+        'nome_contato': _nomeContatoCtrl.text.trim(),
         'telefone_whatsapp': _whatsappController.text.trim(),
         'telefone_fixo': _fixoController.text.trim(),
         'tempo_entrega': _tempoEntregaController.text.trim(),
@@ -485,6 +489,19 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                             ],
                           ),
                         ],
+
+                        const SizedBox(height: 16),
+                        // ENDEREÇO FÍSICO
+                        TextField(
+                          controller: _nomeContatoCtrl,
+                          maxLength: 50,
+                          decoration: InputDecoration(
+                            labelText: 'Nome do Responsável / Contato',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: Icon(Icons.person_outline_rounded, color: Color(0xFFE65100)),
+                            counterText: '',
+                          ),
+                        ),
                         const SizedBox(height: 16),
 
                         // SELETOR SWITCH DO DELIVERY
@@ -557,6 +574,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                             ],
                           ),
                         ],
+
                         const SizedBox(height: 16),
 
                         // ENDEREÇO FÍSICO

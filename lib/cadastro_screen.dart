@@ -1,4 +1,5 @@
-import 'package:aliuai_painel/dashboard_screen.dart';
+import 'package:aliuai_painel/home_screen.dart';
+import 'package:aliuai_painel/termos_uso_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,6 +24,8 @@ class _CadastroScreenState extends State<CadastroScreen> {
   bool _carregando = false;
   bool _carregandoCidades = false;
   bool _senhaInvisivel = true;
+
+  bool _aceitouTermos = false;
 
   String? _estadoSelecionado;
 
@@ -141,11 +144,15 @@ class _CadastroScreenState extends State<CadastroScreen> {
   }
 
   Future<void> _cadastrarParceiro() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+      return;
+    }
     if (_nomeCidadeSelecionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, selecione a sua cidade, uai!'), backgroundColor: Colors.amber));
       return;
     }
+
+    if (!_aceitouTermos) return;
 
     setState(() => _carregando = true);
 
@@ -263,7 +270,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
           // 🚀 LIMPA A ÁRVORE DE TELAS E LEVA DIRETO PARA A HOME SÔ!
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (context) => DashboardScreen(), // Passa o ID da loja nova sô!
+              builder: (context) => HomeScreen(), // Passa o ID da loja nova sô!
             ),
             (Route<dynamic> route) => false, // Isso aqui apaga a tela de cadastro da memória para ele não voltar nela no botão voltar!
           );
@@ -505,8 +512,44 @@ class _CadastroScreenState extends State<CadastroScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Checkbox(
+                        activeColor: Colors.orange,
+                        value: _aceitouTermos,
+                        onChanged: (bool? valor) {
+                          setState(() {
+                            _aceitouTermos = valor ?? false;
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text('Li e estou de acordo com os ', style: TextStyle(fontSize: 13, color: Colors.black)),
+                            GestureDetector(
+                              onTap: () {
+                                // 🚀 Abre a tela de termos para o parceiro ler sô!
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => const TermosUsoPage()));
+                              },
+                              child: const Text(
+                                'Termos de Uso do Aliuai.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline, // Deixa o link sublinhado sô
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
-
                   // BOTÃO DE CONFIRMAR CADASTRO
                   SizedBox(
                     height: 50,
@@ -514,11 +557,18 @@ class _CadastroScreenState extends State<CadastroScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFE65100),
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300], // 🎨 Garante que ele fique cinza quando bloqueado sô!
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      onPressed: _carregando ? null : _cadastrarParceiro,
-                      child: _carregando ? const CircularProgressIndicator(color: Colors.white) : const Text('Criar Minha Conta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+
+                      // 🚨 A FIAÇÃO CORRETA E BLINDADA SÔ:
+                      // O botão fica desabilitado (null) APENAS se estiver carregando OU se ele NÃO marcou os termos!
+                      onPressed: _carregando || !_aceitouTermos ? null : _cadastrarParceiro,
+
+                      child: _carregando
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                          : const Text('Criar Minha Conta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(height: 20),
