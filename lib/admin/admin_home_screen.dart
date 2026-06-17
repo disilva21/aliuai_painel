@@ -1,5 +1,4 @@
 import 'package:aliuai_painel/admin/central_suporte_admin_aba.dart';
-
 import 'package:aliuai_painel/admin/painel_utilidades_screen.dart';
 import 'package:aliuai_painel/admin_lojas_screen.dart';
 
@@ -24,6 +23,10 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
   String? _currentUserUid;
   bool _carregandoPerfil = true;
 
+  // 🚀 NOVO: Variáveis de estado para controlar o redirecionamento direto de chat uai!
+  String? _idLojaAtalho;
+  String? _nomeLojaAtalho;
+
   // Controllers para o cadastro de novas lojas
   final _nomeLojaController = TextEditingController();
   final _emailLojaController = TextEditingController();
@@ -44,14 +47,12 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
   }
 
   /// Carrega os dados de perfil de quem está logado para aplicar os filtros de visualização
-  /// Carrega os dados de perfil de quem está logado comparando o UID dentro do documento
   Future<void> _inicializarPainelAdmin() async {
     try {
       final user = _auth.currentUser;
       if (user != null) {
         _currentUserUid = user.uid;
 
-        // ✨ CORRIGIDO: Faz a busca comparando com o campo 'uid' dentro da coleção
         final queryUser = await _firestore.collection('usuarios').where('uid', isEqualTo: user.uid).limit(1).get();
 
         if (queryUser.docs.isNotEmpty && mounted) {
@@ -64,7 +65,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
         }
       }
 
-      // Carrega as categorias do sistema
       await _carregarCategorias();
     } catch (e) {
       print('Erro ao inicializar dados do painel Admin: $e');
@@ -75,7 +75,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  // Carrega as categorias direto do Firebase para vincular à nova loja
   Future<void> _carregarCategorias() async {
     try {
       final snapshot = await _firestore.collection('categorias').get();
@@ -89,7 +88,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  // Método para deslogar o Admin Master
   Future<void> _logout() async {
     await _auth.signOut();
     if (mounted) {
@@ -97,7 +95,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  // Abre o Modal/Dialog para cadastrar uma nova loja/vendedor
   void _abrirModalCadastroLoja() {
     if (_categoriasDisponiveis.isNotEmpty) {
       _categoriaSelecionadaId = _categoriasDisponiveis.first['id'];
@@ -247,7 +244,7 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                       Navigator.pop(context);
                     }
                   },
-                  child: const Text('Criar Usuário'),
+                  child: const Text('Confirmar'),
                 ),
               ],
             );
@@ -263,7 +260,7 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
         'nome': _nomeUserController.text.trim(),
         'email': _emailUserController.text.trim(),
         'senha_provisoria': _senhaUserProvisoriaController.text.trim(),
-        'role': _roleSelecionada, // 'admin' ou 'vendedor'
+        'role': _roleSelecionada,
         'ativo': true,
         'criado_em': FieldValue.serverTimestamp(),
       });
@@ -282,7 +279,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  // Grava a loja direto no banco vinculando o ID do vendedor logado
   Future<void> _salvarNovaLojaNoFirestore() async {
     try {
       await _firestore.collection('estabelecimentos').add({
@@ -290,10 +286,10 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
         'email': _emailLojaController.text.trim(),
         'senha_provisoria': _senhaProvisoriaController.text.trim(),
         'categoria_id': _categoriaSelecionadaId,
-        'vendedor_uid': _currentUserUid, // 🔥 Vincula automaticamente o estabelecimento ao criador dele
+        'vendedor_uid': _currentUserUid,
         'ativo': false,
         'status_pagamento': 'pendente',
-        'plano_atual': 'indefinido', // Define o plano padrão inicial
+        'plano_atual': 'indefinido',
         'limite_produtos': 0,
         'limite_promocoes': 0,
         'is_delivery': false,
@@ -331,6 +327,7 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                 width: 260,
                 color: const Color(0xFF1E1E26),
                 child: Column(
+                  key: ValueKey(_abaSelecionada), // Ajuda o Flutter a reconstruir os estados de foco do menu lateral
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
@@ -371,7 +368,6 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                       onTap: _abrirModalCadastroLoja,
                     ),
 
-                    // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
                     if (_userRole == 'admin')
                       ListTile(
                         leading: const Icon(Icons.person_add_alt_1, color: Colors.lightBlueAccent),
@@ -382,32 +378,32 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                         onTap: _abrirModalCadastroUsuario,
                       ),
 
-                    // RESTRIÇÃO VISUAL: Vendedor não pode criar outros usuários, apenas o Admin Master pode
                     if (_userRole == 'admin')
                       ListTile(
-                        leading: const Icon(Icons.location_city, color: Colors.lightBlueAccent),
-                        title: const Text(
+                        leading: Icon(Icons.location_city, color: _abaSelecionada == 2 ? Colors.cyanAccent : Colors.grey),
+                        title: Text(
                           'Utilidades Locais',
-                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: _abaSelecionada == 2 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
                         ),
-                        onTap: () {
-                          setState(() {
-                            _abaSelecionada = 2;
-                          });
-                          // Navigator.push(context, MaterialPageRoute(builder: (context) => const PainelUtilidadesPage()));
-                        },
+                        tileColor: _abaSelecionada == 2 ? Colors.white.withOpacity(0.05) : Colors.transparent,
+                        onTap: () => setState(() => _abaSelecionada = 2),
                       ),
 
-                    // ITEM 2: BOTÃO DIRETO DE CADASTRO (AÇÃO RÁPIDA)
+                    // ITEM 5: CHAT SUPORTE
                     ListTile(
-                      leading: const Icon(Icons.chat_bubble_rounded, color: Colors.greenAccent),
-                      title: const Text(
+                      leading: Icon(Icons.chat_bubble_rounded, color: _abaSelecionada == 1 ? Colors.greenAccent : Colors.grey),
+                      title: Text(
                         'Chat Suporte',
-                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: _abaSelecionada == 1 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
                       ),
+                      tileColor: _abaSelecionada == 1 ? Colors.white.withOpacity(0.05) : Colors.transparent,
                       onTap: () {
                         setState(() {
-                          _abaSelecionada = 1; // 👈 Troque o "2" pelo número da posição que o suporte vai ficar no seu IndexedStack sô!
+                          // ✨ COMPORTAMENTO SEGURO: Se clicar no menu manualmente,
+                          // limpa o atalho para carregar a lista geral de conversas sô!
+                          _idLojaAtalho = null;
+                          _nomeLojaAtalho = null;
+                          _abaSelecionada = 1;
                         });
                       },
                     ),
@@ -431,16 +427,29 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                 child: IndexedStack(
                   index: _abaSelecionada,
                   children: [
-                    // ✨ REGRA INJETADA AQUI: Repassa dinamicamente as credenciais de restrição para a sub-tela
-                    AdminLojasScreen(vendedorId: _userRole == 'vendedor' ? _currentUserUid : null),
-                    CentralSuporteAdminAba(),
-                    PainelUtilidadesPage(),
+                    // ✨ INDEX 0: Tela de Gerenciamento de Lojas
+                    AdminLojasScreen(
+                      vendedorId: _userRole == 'vendedor' ? _currentUserUid : null,
+                      // 🔥 AJUSTADO: Captura o clique do IconButton interno e redireciona uai!
+                      onIniciarChat: (lojaId, nomeLoja) {
+                        setState(() {
+                          _idLojaAtalho = lojaId;
+                          _nomeLojaAtalho = nomeLoja;
+                          _abaSelecionada = 1; // 🚀 Pula o ponteiro direto para a aba de Suporte!
+                        });
+                      },
+                    ),
+
+                    // ✨ INDEX 1: Orquestrador da Central de Suporte
+                    CentralSuporteAdminAba(idLojistaInicial: _idLojaAtalho, nomeLojaInicial: _nomeLojaAtalho),
+
+                    // ✨ INDEX 2: Painel de Utilidades
+                    const PainelUtilidadesPage(),
                   ],
                 ),
               ),
             ],
           ),
-          // const BotaoSuporteFlutuante(),
         ],
       ),
     );

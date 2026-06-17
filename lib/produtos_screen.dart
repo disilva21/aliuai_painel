@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/widget/dialog_panfleto_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'cadastro_produto_modal.dart';
@@ -27,6 +28,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
 
   // Variável que armazena a categoria/nicho pai da loja logada sô!
   String categoriaLoja = 'cat_utilidades';
+  String? nomeLoja;
 
   @override
   void initState() {
@@ -155,6 +157,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
         limiteRecuperado = docLoja.data()?['limite_produtos'] ?? 0;
         // 🔥 Garante que vai ler o campo correto do banco (categoria_id ou categoria_estabelecimento sô)
         categoriaRecuperada = docLoja.data()?['categoria_id'] ?? docLoja.data()?['categoria_estabelecimento'] ?? 'cat_utilidades';
+        nomeLoja = docLoja.data()?['nome'];
       }
 
       final snapshotContagem = await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').count().get();
@@ -401,6 +404,25 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                       ),
                                       Row(
                                         children: [
+                                          const Text('Gerar Panfleto', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                          Padding(
+                                            padding: const EdgeInsets.only(right: 20),
+                                            child: IconButton(
+                                              icon: const Icon(Icons.campaign_rounded, color: Colors.purple, size: 24),
+                                              tooltip: 'Gerar Panfleto de Oferta 📸',
+                                              onPressed: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => DialogPanfleto(
+                                                    produto: dados, // 👈 repassa o Map dos dados do produto do Firebase sô
+                                                    nomeLoja: nomeLoja ?? 'Nossa Loja',
+                                                    idLoja: widget.lojaId!,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+
                                           const Text('Disponível', style: TextStyle(fontSize: 12, color: Colors.grey)),
                                           Switch(value: disponivel, activeColor: const Color(0xFFE65100), onChanged: (val) => _alternarDisponibilidade(item.id, disponivel)),
                                           const SizedBox(width: 8),
@@ -437,38 +459,57 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                       children: [
                                         Text(nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                         const SizedBox(height: 6),
+                                        Text('R\$ ${preco.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                        const SizedBox(height: 6),
                                         Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
                                               decoration: BoxDecoration(color: const Color(0xFFE65100).withOpacity(0.06), borderRadius: BorderRadius.circular(4)),
                                               child: Text(
                                                 categoriaProd.toUpperCase(),
                                                 style: const TextStyle(color: Color(0xFFE65100), fontSize: 11, fontWeight: FontWeight.bold),
                                               ),
                                             ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                descricao,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                                              ),
-                                            ),
+                                            // const SizedBox(width: 12),
+                                            // Expanded(
+                                            //   child: Text(
+                                            //     descricao,
+                                            //     maxLines: 1,
+                                            //     overflow: TextOverflow.ellipsis,
+                                            //     style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                            //   ),
+                                            // ),
                                           ],
                                         ),
                                       ],
                                     ),
                                   ),
                                   SizedBox(
-                                    width: 260,
+                                    width: 305,
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
-                                        Text('R\$ ${preco.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                        const Text('Gerar Panfleto', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                        IconButton(
+                                          icon: const Icon(Icons.campaign_rounded, color: Colors.purple, size: 24),
+                                          tooltip: 'Gerar Panfleto de Oferta 📸',
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => DialogPanfleto(
+                                                produto: dados, // 👈 repassa o Map dos dados do produto do Firebase sô
+                                                nomeLoja: nomeLoja ?? 'Nossa Loja',
+                                                idLoja: widget.lojaId!,
+                                              ),
+                                            );
+                                          },
+                                        ),
                                         const SizedBox(width: 24),
-                                        Switch(value: disponivel, activeColor: const Color(0xFFE65100), onChanged: (val) => _alternarDisponibilidade(item.id, disponivel)),
+                                        const Text('Disponível', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                        SizedBox(
+                                          child: Switch(value: disponivel, activeColor: const Color(0xFFE65100), onChanged: (val) => _alternarDisponibilidade(item.id, disponivel)),
+                                        ),
                                         Container(
                                           decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
                                           child: IconButton(

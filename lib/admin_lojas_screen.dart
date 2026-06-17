@@ -3,8 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminLojasScreen extends StatefulWidget {
   final String? vendedorId; // ✨ Recebe o ID do vendedor (se for nulo, é Admin Master)
+  final Function(String lojaId, String nomeLoja) onIniciarChat; // 🚀 GATILHO: Avisa a tela mãe para mudar de aba sô!
 
-  const AdminLojasScreen({super.key, this.vendedorId});
+  const AdminLojasScreen({super.key, this.vendedorId, required this.onIniciarChat});
 
   @override
   State<AdminLojasScreen> createState() => _AdminLojasScreenState();
@@ -136,7 +137,6 @@ class _AdminLojasScreenState extends State<AdminLojasScreen> {
                               labelText: 'Financeiro',
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              // Deixa um fundo cinza sutil para o vendedor ver que está bloqueado
                               filled: widget.vendedorId != null,
                               fillColor: widget.vendedorId != null ? Colors.grey[200] : null,
                             ),
@@ -146,7 +146,7 @@ class _AdminLojasScreenState extends State<AdminLojasScreen> {
                               DropdownMenuItem(value: 'atrasado', child: Text('🔴 Atrasado')),
                             ],
                             onChanged: widget.vendedorId != null
-                                ? null // Desativa o campo visualmente e impede o clique
+                                ? null
                                 : (novoStatus) {
                                     if (novoStatus != null) {
                                       _atualizarStatusPagamento(doc.id, novoStatus);
@@ -154,7 +154,17 @@ class _AdminLojasScreenState extends State<AdminLojasScreen> {
                                   },
                           ),
                         ),
-                        const SizedBox(width: 32),
+                        const SizedBox(width: 24),
+
+                        // 🚀 NOVO: Botão instalado para o Admin iniciar a prosa direto sô!
+                        IconButton(
+                          icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.blue, size: 26),
+                          style: IconButton.styleFrom(backgroundColor: Colors.blue[50], hoverColor: Colors.blue[100], padding: const EdgeInsets.all(10)),
+                          tooltip: 'Iniciar chat de suporte',
+                          // Envia o doc.id (ID_LOJA) real e o nome sô!
+                          onPressed: () => widget.onIniciarChat(doc.id, nome),
+                        ),
+                        const SizedBox(width: 24),
 
                         // Switch de Bloqueio/Ativação no App do Cliente
                         Column(

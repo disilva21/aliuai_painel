@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart'; // 🎧 Importa o tocador de som sô!
 
@@ -54,6 +55,7 @@ class _ChatLojistaWidgetState extends State<ChatLojistaWidget> {
       'texto': texto,
       'criado_em': agora,
       'remetente_id': 'admin', // Identifica que foi você quem mandou
+      'remetente_user_id': FirebaseAuth.instance.currentUser?.uid ?? 'admin',
       'enviado_por_admin': true,
     });
 

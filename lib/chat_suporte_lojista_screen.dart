@@ -51,13 +51,14 @@ class _ChatSuporteLojistaPageState extends State<ChatSuporteLojistaPage> {
 
     _msgController.clear();
     final agora = Timestamp.now();
-    final canalRef = FirebaseFirestore.instance.collection('chats').doc(_uidLojista);
+    final canalRef = FirebaseFirestore.instance.collection('chats').doc(widget.lojaId);
 
     // 1. Grava a mensagem dizendo que NÃO foi o admin quem mandou sô!
     await canalRef.collection('mensagens').add({
       'texto': texto,
       'criado_em': agora,
-      'remetente_id': _uidLojista,
+      'remetente_id': widget.lojaId,
+      'remetente_user_id': _uidLojista,
       'enviado_por_admin': false, // <-- Aqui tá o segredo sô!
     });
 
@@ -105,7 +106,7 @@ class _ChatSuporteLojistaPageState extends State<ChatSuporteLojistaPage> {
           // 📬 2. O motor de tempo real sô!
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('chats').doc(_uidLojista).collection('mensagens').orderBy('criado_em', descending: true).snapshots(),
+              stream: FirebaseFirestore.instance.collection('chats').doc(widget.lojaId).collection('mensagens').orderBy('criado_em', descending: true).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Colors.orange));
