@@ -1,5 +1,6 @@
 import 'package:aliuai_painel/home_screen.dart';
 import 'package:aliuai_painel/termos_uso_page.dart';
+import 'package:aliuai_painel/util/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,36 +31,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
   String? _estadoSelecionado;
 
   String? _nomeCidadeSelecionada; // Guarda o nome limpo da cidade (ex: "Porto Firme")
-
-  final List<String> _estadosDisponiveis = [
-    'AC',
-    'AL',
-    'AP',
-    'AM',
-    'BA',
-    'CE',
-    'DF',
-    'ES',
-    'GO',
-    'MA',
-    'MT',
-    'MS',
-    'MG',
-    'PA',
-    'PB',
-    'PR',
-    'PE',
-    'PI',
-    'RJ',
-    'RN',
-    'RS',
-    'RO',
-    'RR',
-    'SC',
-    'SP',
-    'SE',
-    'TO',
-  ];
 
   List<Map<String, dynamic>> _cidadesDisponiveis = [];
 
@@ -143,6 +114,157 @@ class _CadastroScreenState extends State<CadastroScreen> {
         .replaceAll(RegExp(r'[^a-z0-9_]'), '_');
   }
 
+  // Future<void> _cadastrarParceiro() async {
+  //   if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+  //     return;
+  //   }
+  //   if (_nomeCidadeSelecionada == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, selecione a sua cidade, uai!'), backgroundColor: Colors.amber));
+  //     return;
+  //   }
+
+  //   if (!_aceitouTermos) return;
+
+  //   setState(() => _carregando = true);
+
+  //   try {
+  //     String idCidadeFinal;
+
+  //     final _firestore = FirebaseFirestore.instance;
+
+  //     // =======================================================================
+  //     // 1. VERIFICAÇÃO ANTI-DUPLICAÇÃO: A cidade já existe com esse nome e UF?
+  //     // =======================================================================
+  //     final cidadesExistentes = await _firestore
+  //         .collection('cidades')
+  //         .where('nome', isEqualTo: _nomeCidadeSelecionada)
+  //         .where('uf', isEqualTo: _estadoSelecionado)
+  //         .limit(1) // Só precisamos de uma para comprovar
+  //         .get();
+
+  //     if (cidadesExistentes.docs.isNotEmpty) {
+  //       // Se já existe, pegamos o ID automático que ela já tem no banco!
+  //       idCidadeFinal = cidadesExistentes.docs.first.id;
+  //       print('Cidade já existia no Aliuai com o ID: $idCidadeFinal');
+  //     } else {
+  //       final novaCidadeRef = _firestore.collection('cidades').doc();
+  //       idCidadeFinal = novaCidadeRef.id;
+  //       // 1. SALVA OU ATUALIZA A CIDADE NA COLLECTION DE CIDADES DO FIREBASE
+  //       await novaCidadeRef.set({
+  //         'id': idCidadeFinal,
+  //         'nome': _nomeCidadeSelecionada,
+  //         'uf': _estadoSelecionado,
+  //         'ativo': true, // Garante que fica visível e ativa no ecossistema
+  //       });
+  //     }
+  //     // 2. CRIA O USUÁRIO NO FIREBASE AUTH
+  //     UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: _emailController.text.trim(), password: _senhaController.text.trim());
+
+  //     final uidUsuario = userCredential.user?.uid;
+
+  //     if (uidUsuario != null) {
+  //       // 3. SALVA OS DADOS DO ESTABELECIMENTO PARCEIRO
+
+  //       String idAmigavel = gerarSlugEstabelecimento(_nomeLojaController.text);
+
+  //       // 2. Checa se já existe um DOCUMENTO com esse ID exato sô
+  //       var docExistente = await _firestore.collection('estabelecimentos').doc(idAmigavel).get();
+  //       // 3. Se o portão estiver fechado (já existe), adiciona o código complementar!
+  //       if (docExistente.exists) {
+  //         // Pode ser um número sequencial, ou um hash curto aleatório sô (ex: 4 dígitos)
+  //         String codigoCurto = DateTime.now().millisecondsSinceEpoch.toString().substring(10);
+  //         idAmigavel = "$idAmigavel-$codigoCurto"; // Viraria: banca-do-nelson-vicosa-452
+  //       }
+
+  //       String planoInicial = 'indefinido';
+  //       int limiteProdutos = 0;
+  //       int limitePromocoes = 0;
+  //       String statusPagamento = 'pendente';
+  //       // O vencimento padrão seria agora, forçando ele a escolher um plano sô
+  //       DateTime dataVencimento = DateTime.now();
+
+  //       // 2️⃣ CONSULTA A CONFIGURAÇÃO GLOBAL DO ALIUAI
+
+  //       final docConfigRef = _firestore.collection('configuracao').doc('ziNL1wNtBbGRWSQHCRzQ');
+  //       final docConfig = await docConfigRef.get();
+
+  //       bool aplicouCampanhaGratis = false;
+
+  //       if (docConfig.exists) {
+  //         final dadosConfig = docConfig.data() as Map<String, dynamic>;
+  //         bool isFree = dadosConfig['is_free'] ?? false;
+  //         int diasGratis = dadosConfig['duracao_free_dias'] ?? 30;
+  //         int vagasRestantes = dadosConfig['qtd_free'] ?? 0;
+
+  //         // 🚀 A MÁGICA DA AUTOMAÇÃO SÔ!
+  //         if (isFree == true && vagasRestantes > 0) {
+  //           planoInicial = 'master'; // Já entra com o plano top!
+  //           limiteProdutos = 100; // Seus limites combinados
+  //           limitePromocoes = 50;
+  //           statusPagamento = 'em_dia';
+  //           dataVencimento = DateTime.now().add(Duration(days: diasGratis));
+  //           aplicouCampanhaGratis = true;
+  //         }
+  //       }
+
+  //       final batch = _firestore.batch();
+
+  //       final novaLojaRef = _firestore.collection('estabelecimentos').doc(idAmigavel);
+
+  //       batch.set(novaLojaRef, {
+  //         'uid': uidUsuario,
+  //         'slug': idAmigavel,
+  //         'nome': _nomeLojaController.text.trim(),
+  //         'cidade_id': idCidadeFinal,
+  //         'email': _emailController.text.trim(),
+  //         'ativo': true,
+  //         'nota': 5.0,
+  //         'tempo_entrega': '30-45 min',
+  //         'is_delivery': false,
+  //         'limite_promocoes': limitePromocoes,
+  //         'limite_produtos': limiteProdutos,
+  //         'plano_atual': planoInicial,
+  //         'status_pagamento': statusPagamento,
+  //         'proximo_vencimento': Timestamp.fromDate(dataVencimento),
+  //       });
+
+  //       // 📉 SE PEGOU A VAGA, DESCONTA 1 LÁ NA TABELA DE CONFIGURAÇÃO SÔ!
+  //       if (aplicouCampanhaGratis) {
+  //         batch.update(docConfigRef, {
+  //           'qtd_free': FieldValue.increment(-1), // Diminui uma vaga de forma segura no servidor!
+  //         });
+  //       }
+
+  //       // Manda os dois comandos juntos pro espaço sô!
+  //       await batch.commit();
+  //       if (mounted) {
+  //         // 🚀 LIMPA A ÁRVORE DE TELAS E LEVA DIRETO PARA A HOME SÔ!
+  //         Navigator.of(context).pushAndRemoveUntil(
+  //           MaterialPageRoute(
+  //             builder: (context) => HomeScreen(), // Passa o ID da loja nova sô!
+  //           ),
+  //           (Route<dynamic> route) => false, // Isso aqui apaga a tela de cadastro da memória para ele não voltar nela no botão voltar!
+  //         );
+
+  //         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seja bem-vindo ao Aliuai! Seu painel está pronto sô! 🎉'), backgroundColor: Colors.green));
+  //       }
+  //       // if (mounted) {
+  //       //   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conta criada com sucesso!'), backgroundColor: Colors.green));
+  //       //   Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+  //       // }
+  //     }
+  //   } on FirebaseAuthException catch (e) {
+  //     String mensagemErro = 'Erro ao cadastrar parceiro.';
+  //     if (e.code == 'email-already-in-use') {
+  //       mensagemErro = 'Este e-mail já está cadastrado em nossa plataforma.';
+  //     }
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagemErro), backgroundColor: Colors.red));
+  //     }
+  //   } finally {
+  //     if (mounted) setState(() => _carregando = false);
+  //   }
+  // }
   Future<void> _cadastrarParceiro() async {
     if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
       return;
@@ -158,86 +280,77 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
     try {
       String idCidadeFinal;
-
       final _firestore = FirebaseFirestore.instance;
 
       // =======================================================================
       // 1. VERIFICAÇÃO ANTI-DUPLICAÇÃO: A cidade já existe com esse nome e UF?
       // =======================================================================
-      final cidadesExistentes = await _firestore
-          .collection('cidades')
-          .where('nome', isEqualTo: _nomeCidadeSelecionada)
-          .where('uf', isEqualTo: _estadoSelecionado)
-          .limit(1) // Só precisamos de uma para comprovar
-          .get();
+      final cidadesExistentes = await _firestore.collection('cidades').where('nome', isEqualTo: _nomeCidadeSelecionada).where('uf', isEqualTo: _estadoSelecionado).limit(1).get();
 
       if (cidadesExistentes.docs.isNotEmpty) {
-        // Se já existe, pegamos o ID automático que ela já tem no banco!
         idCidadeFinal = cidadesExistentes.docs.first.id;
         print('Cidade já existia no Aliuai com o ID: $idCidadeFinal');
       } else {
         final novaCidadeRef = _firestore.collection('cidades').doc();
         idCidadeFinal = novaCidadeRef.id;
-        // 1. SALVA OU ATUALIZA A CIDADE NA COLLECTION DE CIDADES DO FIREBASE
-        await novaCidadeRef.set({
-          'id': idCidadeFinal,
-          'nome': _nomeCidadeSelecionada,
-          'uf': _estadoSelecionado,
-          'ativo': true, // Garante que fica visível e ativa no ecossistema
-        });
+        await novaCidadeRef.set({'id': idCidadeFinal, 'nome': _nomeCidadeSelecionada, 'uf': _estadoSelecionado, 'ativo': true});
       }
-      // 2. CRIA O USUÁRIO NO FIREBASE AUTH
+
+      // =======================================================================
+      // 2. CONSULTA A CAMPANHA PROMOCIONAL DA CIDADE NO ALIUAI sô!
+      // =======================================================================
+      String planoInicial = 'indefinido';
+      int limiteProdutos = 0;
+      int limitePromocoes = 0;
+      String statusPagamento = 'pendente';
+      DateTime dataVencimento = DateTime.now();
+      bool aplicouCampanhaGratis = false;
+
+      // Definimos o plano que entra na promoção regional (Ex: master)
+
+      // Referência direta para o documento combinado da cidade sô!
+      final docPlanoCidadeRef = _firestore.collection('planos_cidade').doc(idCidadeFinal);
+      final docPlanoCidade = await docPlanoCidadeRef.get();
+
+      if (docPlanoCidade.exists) {
+        final dadosPromo = docPlanoCidade.data() as Map<String, dynamic>;
+        bool ativo = dadosPromo['ativo'] ?? false;
+        bool isFree = dadosPromo['is_free'] ?? false;
+        int qtdFree = dadosPromo['qtd_free'] ?? 0;
+        int qtdFreeConsumido = dadosPromo['qtd_free_consumido'] ?? 0;
+        int diasGratis = dadosPromo['duracao_free_dias'] ?? 30;
+        String planoPromocaoId = dadosPromo['plano_id'] ?? 'master';
+
+        // VALIDAÇÃO REGIONAL: Tem campanha ativa e ainda restam vagas sô?
+        if (ativo && isFree && (qtdFreeConsumido < qtdFree)) {
+          planoInicial = planoPromocaoId;
+          limiteProdutos = 100; // Limites do plano master uai
+          limitePromocoes = 50;
+          statusPagamento = 'em_dia';
+          dataVencimento = DateTime.now().add(Duration(days: diasGratis));
+          aplicouCampanhaGratis = true;
+          print('🎁 Campanha Regional aplicada! Lojista ganhou benefício em $idCidadeFinal');
+        }
+      }
+
+      // =======================================================================
+      // 3. CRIA O USUÁRIO NO FIREBASE AUTH
+      // =======================================================================
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: _emailController.text.trim(), password: _senhaController.text.trim());
 
       final uidUsuario = userCredential.user?.uid;
 
       if (uidUsuario != null) {
-        // 3. SALVA OS DADOS DO ESTABELECIMENTO PARCEIRO
-
         String idAmigavel = gerarSlugEstabelecimento(_nomeLojaController.text);
 
-        // 2. Checa se já existe um DOCUMENTO com esse ID exato sô
         var docExistente = await _firestore.collection('estabelecimentos').doc(idAmigavel).get();
-        // 3. Se o portão estiver fechado (já existe), adiciona o código complementar!
         if (docExistente.exists) {
-          // Pode ser um número sequencial, ou um hash curto aleatório sô (ex: 4 dígitos)
           String codigoCurto = DateTime.now().millisecondsSinceEpoch.toString().substring(10);
-          idAmigavel = "$idAmigavel-$codigoCurto"; // Viraria: banca-do-nelson-vicosa-452
+          idAmigavel = "$idAmigavel-$codigoCurto";
         }
 
-        String planoInicial = 'indefinido';
-        int limiteProdutos = 0;
-        int limitePromocoes = 0;
-        String statusPagamento = 'pendente';
-        // O vencimento padrão seria agora, forçando ele a escolher um plano sô
-        DateTime dataVencimento = DateTime.now();
-
-        // 2️⃣ CONSULTA A CONFIGURAÇÃO GLOBAL DO ALIUAI
-
-        final docConfigRef = _firestore.collection('configuracao').doc('ziNL1wNtBbGRWSQHCRzQ');
-        final docConfig = await docConfigRef.get();
-
-        bool aplicouCampanhaGratis = false;
-
-        if (docConfig.exists) {
-          final dadosConfig = docConfig.data() as Map<String, dynamic>;
-          bool isFree = dadosConfig['is_free'] ?? false;
-          int diasGratis = dadosConfig['duracao_free_dias'] ?? 30;
-          int vagasRestantes = dadosConfig['qtd_free'] ?? 0;
-
-          // 🚀 A MÁGICA DA AUTOMAÇÃO SÔ!
-          if (isFree == true && vagasRestantes > 0) {
-            planoInicial = 'master'; // Já entra com o plano top!
-            limiteProdutos = 100; // Seus limites combinados
-            limitePromocoes = 50;
-            statusPagamento = 'em_dia';
-            dataVencimento = DateTime.now().add(Duration(days: diasGratis));
-            aplicouCampanhaGratis = true;
-          }
-        }
-
+        // Preparando o lote de gravação atômica sô!
         final batch = _firestore.batch();
-
         final novaLojaRef = _firestore.collection('estabelecimentos').doc(idAmigavel);
 
         batch.set(novaLojaRef, {
@@ -247,7 +360,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
           'cidade_id': idCidadeFinal,
           'email': _emailController.text.trim(),
           'ativo': true,
-          'nota': 5.0,
           'tempo_entrega': '30-45 min',
           'is_delivery': false,
           'limite_promocoes': limitePromocoes,
@@ -255,35 +367,33 @@ class _CadastroScreenState extends State<CadastroScreen> {
           'plano_atual': planoInicial,
           'status_pagamento': statusPagamento,
           'proximo_vencimento': Timestamp.fromDate(dataVencimento),
+          'criado_em': FieldValue.serverTimestamp(),
+          'aberto': false,
         });
 
-        // 📉 SE PEGOU A VAGA, DESCONTA 1 LÁ NA TABELA DE CONFIGURAÇÃO SÔ!
+        // 📈 SE ASSINOU NA FAIXA, INCREMENTA O CONTADOR DA CIDADE NO LOTE!
         if (aplicouCampanhaGratis) {
-          batch.update(docConfigRef, {
-            'qtd_free': FieldValue.increment(-1), // Diminui uma vaga de forma segura no servidor!
+          batch.update(docPlanoCidadeRef, {
+            'qtd_free_consumido': FieldValue.increment(1), // Sobe 1 vaga consumida de forma reativa sô!
+            'atualizadoEm': FieldValue.serverTimestamp(),
           });
         }
 
-        // Manda os dois comandos juntos pro espaço sô!
+        // Manda bala e commita tudo de uma vez uai!
         await batch.commit();
-        if (mounted) {
-          // 🚀 LIMPA A ÁRVORE DE TELAS E LEVA DIRETO PARA A HOME SÔ!
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (context) => HomeScreen(), // Passa o ID da loja nova sô!
-            ),
-            (Route<dynamic> route) => false, // Isso aqui apaga a tela de cadastro da memória para ele não voltar nela no botão voltar!
-          );
 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seja bem-vindo ao Aliuai! Seu painel está pronto sô! 🎉'), backgroundColor: Colors.green));
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => HomeScreen()), (Route<dynamic> route) => false);
+
+          String msgBoasVindas = aplicouCampanhaGratis
+              ? 'Seja bem-vindo sô! Você ganhou a promoção de lançamento da sua cidade! 🎁'
+              : 'Seja bem-vindo ao Aliuai! Escolha seu plano para começar sô! 🎉';
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msgBoasVindas), backgroundColor: Colors.green));
         }
-        // if (mounted) {
-        //   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conta criada com sucesso!'), backgroundColor: Colors.green));
-        //   Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
-        // }
       }
     } on FirebaseAuthException catch (e) {
-      String mensagemErro = 'Erro ao cadastrar parceiro.';
+      String mensagemErro = 'Erro ao cadastrar restaurante.';
       if (e.code == 'email-already-in-use') {
         mensagemErro = 'Este e-mail já está cadastrado em nossa plataforma.';
       }
@@ -374,7 +484,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                       prefixIcon: const Icon(Icons.map, color: Color(0xFFE65100)),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    items: _estadosDisponiveis.map((estado) {
+                    items: Utils.estadosDisponiveis.map((estado) {
                       return DropdownMenuItem<String>(value: estado, child: Text(estado));
                     }).toList(),
                     onChanged: (uf) {

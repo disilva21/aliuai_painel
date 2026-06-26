@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/admin/admin_planos_cidade_screen.dart';
 import 'package:aliuai_painel/admin/central_suporte_admin_aba.dart';
 import 'package:aliuai_painel/admin/painel_utilidades_screen.dart';
 import 'package:aliuai_painel/admin_lojas_screen.dart';
@@ -287,14 +288,16 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
         'senha_provisoria': _senhaProvisoriaController.text.trim(),
         'categoria_id': _categoriaSelecionadaId,
         'vendedor_uid': _currentUserUid,
-        'ativo': false,
+        'ativo': true,
         'status_pagamento': 'pendente',
         'plano_atual': 'indefinido',
         'limite_produtos': 0,
         'limite_promocoes': 0,
         'is_delivery': false,
         'tempo_entrega': '',
+        'proximo_vencimento': Timestamp.fromDate(DateTime.now()),
         'criado_em': FieldValue.serverTimestamp(),
+        'aberto': false,
       });
 
       _limparCamposModal();
@@ -389,24 +392,36 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                         onTap: () => setState(() => _abaSelecionada = 2),
                       ),
 
-                    // ITEM 5: CHAT SUPORTE
-                    ListTile(
-                      leading: Icon(Icons.chat_bubble_rounded, color: _abaSelecionada == 1 ? Colors.greenAccent : Colors.grey),
-                      title: Text(
-                        'Chat Suporte',
-                        style: TextStyle(color: _abaSelecionada == 1 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                    if (_userRole == 'admin')
+                      ListTile(
+                        leading: Icon(Icons.location_city, color: _abaSelecionada == 2 ? Colors.cyanAccent : Colors.grey),
+                        title: Text(
+                          'Planos por cidade',
+                          style: TextStyle(color: _abaSelecionada == 2 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                        ),
+                        tileColor: _abaSelecionada == 3 ? Colors.white.withOpacity(0.05) : Colors.transparent,
+                        onTap: () => setState(() => _abaSelecionada = 3),
                       ),
-                      tileColor: _abaSelecionada == 1 ? Colors.white.withOpacity(0.05) : Colors.transparent,
-                      onTap: () {
-                        setState(() {
-                          // ✨ COMPORTAMENTO SEGURO: Se clicar no menu manualmente,
-                          // limpa o atalho para carregar a lista geral de conversas sô!
-                          _idLojaAtalho = null;
-                          _nomeLojaAtalho = null;
-                          _abaSelecionada = 1;
-                        });
-                      },
-                    ),
+
+                    // ITEM 5: CHAT SUPORTE
+                    if (_userRole == 'admin')
+                      ListTile(
+                        leading: Icon(Icons.chat_bubble_rounded, color: _abaSelecionada == 1 ? Colors.greenAccent : Colors.grey),
+                        title: Text(
+                          'Chat Suporte',
+                          style: TextStyle(color: _abaSelecionada == 1 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                        ),
+                        tileColor: _abaSelecionada == 1 ? Colors.white.withOpacity(0.05) : Colors.transparent,
+                        onTap: () {
+                          setState(() {
+                            // ✨ COMPORTAMENTO SEGURO: Se clicar no menu manualmente,
+                            // limpa o atalho para carregar a lista geral de conversas sô!
+                            _idLojaAtalho = null;
+                            _nomeLojaAtalho = null;
+                            _abaSelecionada = 1;
+                          });
+                        },
+                      ),
                     const Spacer(),
                     const Divider(color: Colors.white12, height: 1),
                     ListTile(
@@ -445,6 +460,8 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
 
                     // ✨ INDEX 2: Painel de Utilidades
                     const PainelUtilidadesPage(),
+
+                    const AdminPlanosCidadeScreen(),
                   ],
                 ),
               ),

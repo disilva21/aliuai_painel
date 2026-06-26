@@ -1,17 +1,19 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:html' as html;
 import 'dart:ui_web' as ui_web;
+import 'package:crop_your_image/crop_your_image.dart'; // 🚀 NOVO: Biblioteca mestre do corte sô!
 
 class CadastroProdutoModal extends StatefulWidget {
-  final Map<String, dynamic>? produtoExistente; // Para edições de produto
+  final Map<String, dynamic>? produtoExisting; // Para edições de produto
   final String lojaId;
-  final String categoriaLoja; // Recebe o ID do nicho pai tratado (ex: 'cat_restaurantes')
-  final String? idProduto; // ID do produto para edição, se aplicável
+  final String categoriaLoja;
+  final String? idProduto;
 
-  const CadastroProdutoModal({super.key, this.produtoExistente, required this.lojaId, required this.categoriaLoja, this.idProduto});
+  const CadastroProdutoModal({super.key, this.produtoExisting, required this.lojaId, required this.categoriaLoja, this.idProduto});
 
   @override
   State<CadastroProdutoModal> createState() => _CadastroProdutoModalState();
@@ -31,25 +33,29 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
   String _fotoUrl = '';
 
   bool _salvando = false;
-  String? _categoriaSelecionada; // Armazena o slug em minúsculo sô!
+  String? _categoriaSelecionada;
 
-  // 📡 Lista dinâmica das categorias filtradas por nicho pai sô
   List<Map<String, dynamic>> _categoriasFiltradas = [];
   bool _carregandoCategorias = true;
+
+  // 🚀 NOVO: Estado de controle para o Crop em memória sô!
+  final CropController _cropController = CropController();
+  Uint8List? _bytesImagemOriginal;
+  bool _modoCorteAtivo = false;
+  String _extensaoArquivoOriginal = 'jpg';
 
   @override
   void initState() {
     super.initState();
     _carregarCategoriasPorNicho();
 
-    // Se um produto existente for passado, pré-preenche os campos para edição
-    if (widget.produtoExistente != null) {
-      _nomeController.text = widget.produtoExistente!['nome'] ?? '';
-      _precoController.text = widget.produtoExistente!['preco'].toString();
-      _descricaoController.text = widget.produtoExistente!['descricao'] ?? '';
-      _codigoController.text = widget.produtoExistente!['codigo'] ?? '';
-      _fotoUrl = widget.produtoExistente!['foto_url'] ?? '';
-      _categoriaSelecionada = widget.produtoExistente!['categoria_id']; // Resgata o slug salvo sô
+    if (widget.produtoExisting != null) {
+      _nomeController.text = widget.produtoExisting!['nome'] ?? '';
+      _precoController.text = widget.produtoExisting!['preco'].toString();
+      _descricaoController.text = widget.produtoExisting!['descricao'] ?? '';
+      _codigoController.text = widget.produtoExisting!['codigo'] ?? '';
+      _fotoUrl = widget.produtoExisting!['foto_url'] ?? '';
+      _categoriaSelecionada = widget.produtoExisting!['categoria_id'];
     }
   }
 
@@ -58,23 +64,19 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     _nomeController.dispose();
     _precoController.dispose();
     _descricaoController.dispose();
+    _codigoController.dispose();
     super.dispose();
   }
 
-  /// 🛠️ Busca apenas as subcategorias permitidas para o nicho desta loja sô!
   Future<void> _carregarCategoriasPorNicho() async {
     try {
       final snapshot = await _firestore.collection('categoria_produto').where('estabelecimentos_permitidos', arrayContains: widget.categoriaLoja).where('ativo', isEqualTo: true).get();
 
       final List<Map<String, dynamic>> carregadas = snapshot.docs.map((doc) {
         final dados = doc.data();
-        return {
-          'slug': dados['slug'] ?? doc.id, // ID tratado em minúsculo sô!
-          'nome': dados['nome'].toString(), // Nome com maiúscula para exibição
-        };
+        return {'slug': dados['slug'] ?? doc.id, 'nome': dados['nome'].toString()};
       }).toList();
 
-      // Ordena por ordem alfabética o nome bonito sô!
       carregadas.sort((a, b) => a['nome'].compareTo(b['nome']));
 
       if (mounted) {
@@ -82,7 +84,6 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
           _categoriasFiltradas = carregadas;
           _carregandoCategorias = false;
 
-          // Se não for edição e tiver dados, pré-seleciona a primeira opção
           if (_categoriaSelecionada == null && _categoriasFiltradas.isNotEmpty) {
             _categoriaSelecionada = _categoriasFiltradas.first['slug'];
           }
@@ -94,43 +95,55 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
     }
   }
 
-  /// Upload de foto em Bytes para Flutter Web
-  Future<void> _escolherEEnviarFoto() async {
+  /// 📸 PASSO A: Escolhe o arquivo e ativa a mesa de corte interna sô!
+  Future<void> _escolherFotoOriginal() async {
     FilePickerResult? resultado = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
 
     if (resultado != null && resultado.files.first.bytes != null) {
-      setState(() => _subindoFoto = true);
+      final nomeArquivo = resultado.files.first.name;
+      setState(() {
+        _bytesImagemOriginal = resultado.files.first.bytes;
+        _extensaoArquivoOriginal = nomeArquivo.split('.').last.toLowerCase();
+        _modoCorteAtivo = true; // 🎛️ Ativa a mesa de corte na tela uai!
+      });
+    }
+  }
 
-      try {
-        final arquivoBytes = resultado.files.first.bytes!;
-        final nomeArquivo = resultado.files.first.name;
-        final extensao = nomeArquivo.split('.').last;
-        final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+  /// 📸 PASSO B: Processa os bytes recortados em 1:1 e faz o despacho pro Storage sô!
+  Future<void> _fazerUploadBytesRecortados(Uint8List bytesRecortados) async {
+    setState(() {
+      _modoCorteAtivo = false;
+      _subindoFoto = true;
+    });
 
-        final ref = _storage.ref().child('produtos/${widget.lojaId}_$timestamp.$extensao');
+    try {
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final ref = _storage.ref().child('produtos/${widget.lojaId}_$timestamp.$_extensaoArquivoOriginal');
 
-        UploadTask uploadTask = ref.putData(arquivoBytes, SettableMetadata(contentType: 'image/$extensao'));
+      UploadTask uploadTask = ref.putData(bytesRecortados, SettableMetadata(contentType: 'image/$_extensaoArquivoOriginal'));
 
-        TaskSnapshot snapshot = await uploadTask;
-        String urlPublica = await snapshot.ref.getDownloadURL();
+      TaskSnapshot snapshot = await uploadTask;
+      String urlPublica = await snapshot.ref.getDownloadURL();
 
-        if (mounted) {
-          setState(() {
-            _fotoUrl = urlPublica;
-            _subindoFoto = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto atualizada! 📸'), backgroundColor: Colors.green));
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _subindoFoto = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao enviar imagem: $e'), backgroundColor: Colors.red));
-        }
+      if (mounted) {
+        setState(() {
+          _fotoUrl = urlPublica;
+          _subindoFoto = false;
+          _bytesImagemOriginal = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foto recortada e atualizada com sucesso! 📸✂️'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _subindoFoto = false;
+          _bytesImagemOriginal = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao enviar imagem recortada: $e'), backgroundColor: Colors.red));
       }
     }
   }
 
-  /// 🔥 MÉTODO DE SALVAMENTO AJUSTADO: Alinhamento perfeito com o Filtro sô!
   Future<void> _salvarProduto() async {
     if (!_formKey.currentState!.validate() || _categoriaSelecionada == null) return;
 
@@ -138,12 +151,9 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
 
     final precoTexto = _precoController.text.trim().replaceAll(',', '.');
     final precoDouble = double.tryParse(precoTexto) ?? 0.0;
-
-    // 🕵️‍♂️ Captura o código digitado ou bipado pelo lojista sô!
     final String? codigoDigitado = _codigoController.text.trim().isNotEmpty ? _codigoController.text.trim() : null;
 
     try {
-      // 🧠 Extrai os dados exatos do item selecionado na lista filtrada sô!
       final catObjeto = _categoriasFiltradas.firstWhere((cat) => cat['slug'] == _categoriaSelecionada);
       final String nomeCategoriaBonito = catObjeto['nome'];
       final String slugCategoriaMinusc = catObjeto['slug'];
@@ -156,7 +166,6 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         cidadeIdDaLoja = dadosLoja?['cidade_id'] ?? '';
       }
 
-      // 📦 Dados base que servem tanto para criar quanto para editar sô!
       final produtoData = {
         'nome': _nomeController.text.trim(),
         'preco': precoDouble,
@@ -166,39 +175,26 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         'foto_url': _fotoUrl,
       };
 
-      // 🍟 Ponteiro para a nossa subcoleção de produtos
       final subColecaoProdutos = _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos');
 
-      // 🛠️ MODO EDIÇÃO: O produto já existe na roça sô!
-      if (widget.produtoExistente != null) {
-        await subColecaoProdutos.doc(widget.idProduto).update({
-          ...produtoData,
-          // Se você deixar ele editar o código, salvamos o novo digitado ou mantém o ID antigo se for marmita
-          'codigo': codigoDigitado ?? widget.idProduto,
-          'alterado_em': FieldValue.serverTimestamp(),
-        });
-      }
-      // 🍳 MODO CRIAÇÃO: Produto novinho chegando (Marmita ou Código de barras)
-      else {
+      if (widget.produtoExisting != null) {
+        await subColecaoProdutos.doc(widget.idProduto).update({...produtoData, 'codigo': codigoDigitado ?? widget.idProduto, 'alterado_em': FieldValue.serverTimestamp()});
+      } else {
         DocumentReference docRef;
         String codigoFinal;
 
-        // Se o lojista preencheu o código de barras sô!
         if (codigoDigitado != null) {
           codigoFinal = codigoDigitado;
-          docRef = subColecaoProdutos.doc(codigoFinal); // O ID do doc vira o código de barras!
-        }
-        // Se deixou em branco (A Marmita sô!)
-        else {
-          docRef = subColecaoProdutos.doc(); // Firestore gera o ID aleatório único na memória!
-          codigoFinal = docRef.id; // O código interno vira o próprio ID do documento!
+          docRef = subColecaoProdutos.doc(codigoFinal);
+        } else {
+          docRef = subColecaoProdutos.doc();
+          codigoFinal = docRef.id;
         }
 
-        // Salva direto usando o .set() com custo zero de leitura sô!
         await docRef.set({
           ...produtoData,
-          'id': docRef.id, // Deixa gravado o ID pra facilitar buscas futuras
-          'codigo': codigoFinal, // Carimba o código final (seja de barras ou aleatório)
+          'id': docRef.id,
+          'codigo': codigoFinal,
           'disponivel': true,
           'criado_em': FieldValue.serverTimestamp(),
           'estabelecimento_id': widget.lojaId,
@@ -232,7 +228,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
             children: [
               const Icon(Icons.add_box, color: Color(0xFFE65100)),
               const SizedBox(width: 8),
-              Text(widget.produtoExistente != null ? 'Editar Produto' : 'Novo Produto', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(widget.produtoExisting != null ? 'Editar Produto' : 'Novo Produto', style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
@@ -247,6 +243,69 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
               )
             : _categoriasFiltradas.isEmpty
             ? SizedBox(height: 100, child: Center(child: Text('Nenhuma subcategoria liberada para o nicho "${widget.categoriaLoja}" sô! 🌾')))
+            : _modoCorteAtivo && _bytesImagemOriginal != null
+            // 🎛️ INTERFACE DE CORTE ATIVA: Entra no lugar do formulário temporariamente sô!
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Ajuste o Enquadramento Quadrado (1:1) sô:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 300,
+                    width: 400,
+                    decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+                    child: Crop(
+                      image: _bytesImagemOriginal!,
+                      controller: _cropController,
+                      aspectRatio: 1.0,
+
+                      // 🚀 ATUALIZADO: Abrimos a caixinha 'result' para pegar os bytes reais sô!
+                      onCropped: (result) {
+                        if (result is CropSuccess) {
+                          // Se o corte deu certo, passamos os bytes (result.image) pro seu método de upload!
+                          _fazerUploadBytesRecortados(result.croppedImage);
+                        } else if (result is CropFailure) {
+                          // Se deu algum chabu no corte, avisamos o lojista sô
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao cortar a imagem sô! Tente novamente.'), backgroundColor: Colors.red));
+                          setState(() {
+                            _modoCorteAtivo = false;
+                            _bytesImagemOriginal = null;
+                          });
+                        }
+                      },
+
+                      interactive: true,
+                      baseColor: Colors.white,
+                      maskColor: Colors.black.withOpacity(0.5),
+                      cornerDotBuilder: (size, edgeIndex) => const DotControl(color: Color(0xFFE65100)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _modoCorteAtivo = false;
+                          _bytesImagemOriginal = null;
+                        }),
+                        child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                      ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                        icon: const Icon(Icons.crop),
+                        label: const Text('Confirmar Corte e Subir', style: TextStyle(fontWeight: FontWeight.bold)),
+                        // Dispara o gatilho que executa o onCropped acima sô!
+                        onPressed: () => _cropController.crop(),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            // 📝 FORMULÁRIO PADRÃO DO PRODUTO sô!
             : SingleChildScrollView(
                 child: Form(
                   key: _formKey,
@@ -254,7 +313,6 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // NOME DO PRODUTO
                       TextFormField(
                         controller: _nomeController,
                         decoration: InputDecoration(
@@ -266,7 +324,6 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                       ),
                       const SizedBox(height: 16),
 
-                      // PREÇO E CATEGORIA DO PRODUTO
                       Row(
                         children: [
                           Expanded(
@@ -290,7 +347,6 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                           ),
                           const SizedBox(width: 16),
 
-                          // DROPDOWN RESPONSIVO E ADAPTADO PARA TEXTOS COMPRIDOS SÔ!
                           Expanded(
                             flex: 7,
                             child: DropdownButtonFormField<String>(
@@ -303,12 +359,8 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                               ),
                               items: _categoriasFiltradas.map((cat) {
                                 return DropdownMenuItem<String>(
-                                  value: cat['slug'], // Mapeia o valor em minúsculo de forma segura
-                                  child: Text(
-                                    cat['nome'], // Nome bonito com acentos e maiúsculas sô
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
+                                  value: cat['slug'],
+                                  child: Text(cat['nome'], overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
                                 );
                               }).toList(),
                               onChanged: (val) => setState(() => _categoriaSelecionada = val),
@@ -321,21 +373,14 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                       TextField(
                         controller: _codigoController,
                         keyboardType: TextInputType.text,
-                        autofocus: true, // 🤠 Já nasce focado pro lojista só bipar!
                         decoration: const InputDecoration(labelText: 'Código de Barras (Opcional) 🏷️', hintText: 'Bipe o código de barras ou deixe em branco', border: OutlineInputBorder()),
-                        // 🚀 O PULO DO GATO: Quando o leitor bipa, ele dá "Enter" e cai aqui na hora sô!
                         onSubmitted: (valor) {
-                          if (valor.isNotEmpty) {
-                            // Aqui você pode disparar alguma lógica ou só deixar o valor guardado
-                            // pro lojista clicar em salvar depois sô!
-                            print('Bipou o código: $valor');
-                          }
+                          if (valor.isNotEmpty) print('Bipou o código: $valor');
                         },
                       ),
 
                       const SizedBox(height: 16),
 
-                      // DESCRIÇÃO DO PRODUTO
                       TextFormField(
                         controller: _descricaoController,
                         maxLines: 3,
@@ -355,7 +400,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                             height: 120,
                             decoration: BoxDecoration(
                               color: Colors.grey[200],
-                              shape: BoxShape.circle,
+                              // shape: BoxShape.circle,
                               border: Border.all(color: Colors.grey[300]!, width: 2),
                             ),
                             child: _subindoFoto
@@ -382,7 +427,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                             style: TextButton.styleFrom(foregroundColor: const Color(0xFFE65100)),
                             icon: const Icon(Icons.cloud_upload_outlined),
                             label: const Text('Foto do Produto (PNG/JPG)', style: TextStyle(fontWeight: FontWeight.bold)),
-                            onPressed: _subindoFoto ? null : _escolherEEnviarFoto,
+                            onPressed: _subindoFoto ? null : _escolherFotoOriginal,
                           ),
                         ],
                       ),
@@ -392,25 +437,27 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
               ),
       ),
       actionsPadding: const EdgeInsets.all(24),
-      actions: [
-        TextButton(
-          onPressed: _salvando ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE65100),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            elevation: 0,
-          ),
-          onPressed: _salvando ? null : _salvarProduto,
-          child: _salvando
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('Salvar Produto', style: TextStyle(fontWeight: FontWeight.bold)),
-        ),
-      ],
+      actions: _modoCorteAtivo
+          ? null // Oculta as ações do form principal quando estiver cortando sô
+          : [
+              TextButton(
+                onPressed: _salvando ? null : () => Navigator.pop(context),
+                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE65100),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                onPressed: _salvando ? null : _salvarProduto,
+                child: _salvando
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Salvar Produto', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
     );
   }
 }

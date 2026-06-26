@@ -384,17 +384,24 @@ class _PlanosScreenState extends State<PlanosScreen> {
               mainAxisSize: MainAxisSize.min, // Faz o card abraçar o conteúdo no celular sô!
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (isPlanoAtual)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                    child: Text(
-                      'Seu Plano Ativo ✔',
-                      style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                Text(titulo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    if (isPlanoAtual)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(color: corDestaque.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                        child: Text(
+                          'Seu Plano Ativo ✔',
+                          style: TextStyle(color: corDestaque, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
                 if (descricao.isNotEmpty) ...[const SizedBox(height: 6), Text(descricao, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3))],
                 const SizedBox(height: 16),
 

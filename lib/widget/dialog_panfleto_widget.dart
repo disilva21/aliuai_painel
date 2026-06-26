@@ -2,13 +2,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:html' as html; // 🌐 Fiação nativa para download na Web sô!
+import 'package:qr_flutter/qr_flutter.dart'; // 🚀 NOVO: Biblioteca do QR Code inteligente!
 
 class DialogPanfleto extends StatefulWidget {
   final Map<String, dynamic> produto;
   final String nomeLoja;
   final String idLoja;
+  final String planoDaLoja;
 
-  const DialogPanfleto({super.key, required this.produto, required this.nomeLoja, required this.idLoja});
+  const DialogPanfleto({super.key, required this.produto, required this.nomeLoja, required this.idLoja, required this.planoDaLoja});
 
   @override
   State<DialogPanfleto> createState() => _DialogPanfletoState();
@@ -22,18 +24,69 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
   Color _corFundoSelecionada = const Color(0xFF1E1E26);
   String _chamadaTopo = "OFERTA ESPECIAL DO DIA! 🎉";
 
+  // 🎨 PALETA ATUALIZADA: Guardamos o nome por contingência, mas focamos na cor sô!
   final List<Map<String, dynamic>> _paletaCores = [
     {'nome': 'Dark Aliuai', 'cor': const Color(0xFF1E1E26)},
     {'nome': 'Laranja Uai', 'cor': const Color(0xFFE65100)},
     {'nome': 'Branco Clean', 'cor': const Color(0xFFF5F5F5)},
     {'nome': 'Verde Pix', 'cor': const Color(0xFF004D40)},
+    {'nome': 'Azul', 'cor': const ui.Color.fromARGB(255, 7, 88, 155)},
+    {'nome': 'Lilas', 'cor': const ui.Color.fromARGB(255, 151, 3, 209)},
   ];
+
+  void _mostrarAvisoUpgradePlano(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: Color(0xFFE65100)),
+              SizedBox(width: 8),
+              Text('Recurso Exclusivo sô! 🌟'),
+            ],
+          ),
+          content: const Text(
+            'A criação de panfletos promocionais automáticos é um benefício do **Plano Master** uai!\n\n'
+            'Com ele, você gera artes lindas dos seus produtos para bombar nas redes sociais e no WhatsApp no estalo de um clique.',
+            style: TextStyle(fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E1E26),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                // 💳 Direciona o caboclo direto para a tela global de planos/pagamento uai!
+                // Navigator.pushNamed(context, '/selecao_planos_pagamento');
+              },
+              child: const Text('Mude seu Plano 🚀', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   /// 📥 MOTOR DE EXPORTAÇÃO
   Future<void> _exportarPanfletoParaPng() async {
     setState(() => _gerandoImagem = true);
 
     try {
+      if (widget.planoDaLoja.isEmpty || widget.planoDaLoja != 'master') {
+        _mostrarAvisoUpgradePlano(context);
+
+        return;
+      }
+
       await Future.delayed(const Duration(milliseconds: 300));
       RenderRepaintBoundary boundary = _globalKeyPanfleto.currentContext!.findRenderObject() as RenderRepaintBoundary;
 
@@ -69,6 +122,9 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
     Color corTextoPrincipal = isLight ? Colors.black87 : Colors.white;
     Color corTextoSecundario = isLight ? Colors.grey[700]! : Colors.white70;
 
+    // 🔥 VÍNCULO DA SUA URLSTRATEGY: O link dinâmico da loja sô!
+    String linkOficialLoja = "https://aliuai.com.br/loja/${widget.idLoja}";
+
     // 📱 DETECTOR DE TAMANHO DE TELA SÔ!
     final double larguraTela = MediaQuery.of(context).size.width;
     final bool ehCelular = larguraTela < 800;
@@ -94,24 +150,35 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
             'Cor de Fundo do Panfleto:',
             style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+
+          // 🎨 NOVO SELETOR DE CORES EM CÍRCULOS (ESTILO CHROMATIC DROPS sô!)
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 12,
+            runSpacing: 12,
             children: _paletaCores.map((item) {
               bool selecionada = _corFundoSelecionada == item['cor'];
-              return ChoiceChip(
-                label: Text(item['nome'], style: TextStyle(color: selecionada ? Colors.white : Colors.black87)),
-                selected: selecionada,
-                selectedColor: const Color(0xFFE65100),
-                backgroundColor: Colors.grey[200],
-                onSelected: (bool selected) {
-                  if (selected) setState(() => _corFundoSelecionada = item['cor']);
-                },
+              return GestureDetector(
+                onTap: () => setState(() => _corFundoSelecionada = item['cor']),
+                child: Tooltip(
+                  message: item['nome'],
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: item['cor'],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: selecionada ? const Color(0xFFE65100) : Colors.grey[300]!, width: selecionada ? 3 : 1),
+                      boxShadow: [if (selecionada) BoxShadow(color: const Color(0xFFE65100).withOpacity(0.3), blurRadius: 6, spreadRadius: 1)],
+                    ),
+                    child: selecionada ? Icon(Icons.check_circle_rounded, size: 20, color: item['cor'] == const Color(0xFFF5F5F5) ? const Color(0xFFE65100) : Colors.white) : const SizedBox.shrink(),
+                  ),
+                ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
+
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -126,13 +193,12 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
       );
     }
 
-    // 🎨 COMPONENTE: O Panfleto 9:16 Puro sô!
+    // 🎨 COMPONENTE: O Panfleto 9:16 Puro com QR Code sô!
     Widget construirPreviewPanfleto() {
       return Container(
         decoration: BoxDecoration(
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 5))],
         ),
-        // 🚀 O FITTEDBOX É A VACINA: Encolhe o panfleto pra caber em qualquer celular sem quebrar!
         child: FittedBox(
           fit: BoxFit.contain,
           child: RepaintBoundary(
@@ -191,7 +257,7 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
                                 style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, decoration: TextDecoration.lineThrough, fontWeight: FontWeight.w500),
                               ),
                             Text(
-                              'Por: R\$ ${precoPromocional.toStringAsFixed(2)}',
+                              'Por: R\$ ${precoPromocional > 0 ? precoPromocional.toStringAsFixed(2) : precoAtual.toStringAsFixed(2)}',
                               style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -199,14 +265,48 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
                       ),
                     ],
                   ),
+
+                  // 🌌 RODAPÉ ATUALIZADO: Layout Integrado com QR Code Dinâmico e Legendas sô!
                   Column(
                     children: [
-                      Text(
-                        'Acesse o nosso catálogo para pedir! 👋',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: corTextoSecundario, fontSize: 11, fontWeight: FontWeight.w600),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Aponte a câmera 📱',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(color: corTextoPrincipal, fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'e peça direto do catálogo!',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(color: corTextoSecundario, fontSize: 11, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+
+                          // 🏁 BLOCO DO QR CODE: Com contraste garantido em fundo branco
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
+                            ),
+                            child: QrImageView(
+                              data: linkOficialLoja, // 👈 Vinculado com a sua URLStrategy sô!
+                              version: QrVersions.auto,
+                              size: 80.0,
+                              gapless: true,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       const Divider(color: Colors.white12, height: 1),
                       const SizedBox(height: 12),
                       Text(
@@ -214,7 +314,7 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
                         style: TextStyle(color: corTextoSecundario.withOpacity(0.5), fontSize: 9, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        'https://aliuai.com.br/loja/${widget.idLoja}',
+                        'aliuai.com.br/loja/${widget.idLoja}',
                         style: TextStyle(color: corTextoSecundario.withOpacity(0.5), fontSize: 9, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -239,12 +339,10 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
         ],
       ),
       content: SizedBox(
-        // Força uma largura boa se for computador, ou deixa livre se for celular sô!
         width: ehCelular ? double.maxFinite : 750,
         child: SingleChildScrollView(
           child: ehCelular
               ? Column(
-                  // 📱 SE FOR CELULAR: Coloca o panfleto em cima e os botões embaixo sô!
                   children: [
                     SizedBox(height: 380, child: construirPreviewPanfleto()),
                     const SizedBox(height: 24),
@@ -254,7 +352,6 @@ class _DialogPanfletoState extends State<DialogPanfleto> {
                   ],
                 )
               : Row(
-                  // 💻 SE FOR COMPUTADOR: Mantém lado a lado chique demais!
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(flex: 4, child: construirControles()),

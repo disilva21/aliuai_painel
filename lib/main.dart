@@ -23,7 +23,7 @@ class AliuaiPainelApp extends StatelessWidget {
     return MaterialApp(
       title: 'Painel do Parceiro | Aliuai',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.orange, primaryColor: const Color(0xFFE65100), scaffoldBackgroundColor: const Color(0xFFF5F5F5)),
+      theme: ThemeData(primarySwatch: Colors.orange, primaryColor: const Color(0xFFE65100), scaffoldBackgroundColor: const Color(0xFFF5F5F5), fontFamily: 'Roboto'),
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),

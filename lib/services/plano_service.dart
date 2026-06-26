@@ -46,4 +46,24 @@ class PlanoService {
       return null;
     }
   }
+
+  static Future<List<Map<String, dynamic>>> buscarPlanosAtivos() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('planos').where('ativo', isEqualTo: true).get();
+
+      return snapshot.docs.map((doc) {
+        final dados = doc.data();
+        return {
+          'id': doc.id, // ID do plano sô ('inicial', 'intermediario', 'master')
+          'nome': dados['nome'] ?? 'Sem Nome',
+          'valor': (dados['valor'] ?? 0.0).toDouble(),
+          'limite_produtos': dados['limite_produtos'] ?? 0,
+          'limite_promocoes': dados['limite_promocoes'] ?? 0,
+        };
+      }).toList();
+    } catch (e) {
+      print('Erro ao buscar planos ativos sô: $e');
+      return [];
+    }
+  }
 }

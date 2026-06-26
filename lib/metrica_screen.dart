@@ -124,12 +124,12 @@ class _MetricaScreenState extends State<MetricaScreen> {
                   totalItensSolicitados += itens.length;
 
                   // 💳 Calcula os valores baseado na forma de pagamento sô!
-                  final String metodoPagamento = dadosPedido['forma_pagamento'] ?? '';
+                  final String origem = dadosPedido['origem'] ?? '';
                   final String statusPedido = (dadosPedido['status'] ?? 'pendente').toLowerCase(); // 🕵️‍♂️ Puxa o status sô!
                   final double valorTotal = (dadosPedido['total'] ?? 0.0).toDouble();
 
                   // 1️⃣ Primeiro: Trata o fiado isolado. Se for fiado, soma e dá o tchau sô!
-                  if (metodoPagamento.toLowerCase() == 'fiado' || metodoPagamento.toLowerCase() == 'caderneta') {
+                  if (origem.toLowerCase() == 'fiado' || origem.toLowerCase() == 'caderneta') {
                     faturamentoFiado += valorTotal;
                     continue; // 🚀 Pula o resto todo e vai direto pro próximo pedido!
                   }
@@ -148,7 +148,7 @@ class _MetricaScreenState extends State<MetricaScreen> {
                   // 🕵️‍♂️ Faz o balanço de qual produto mais saiu hoje!
                   for (var item in itens) {
                     final Map<String, dynamic> itemMap = item as Map<String, dynamic>? ?? {};
-                    final String nomeProduto = itemMap['titulo'] ?? itemMap['nome'] ?? 'Produto';
+                    final String nomeProduto = itemMap['nome_produto'] ?? itemMap['produto_id'];
                     final int qtd = itemMap['quantidade'] ?? 1;
                     contagemProdutos[nomeProduto] = (contagemProdutos[nomeProduto] ?? 0) + qtd;
                   }

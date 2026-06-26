@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:aliuai_painel/caderneta_fiado_screen.dart';
 import 'package:aliuai_painel/gerenciar_eventos_screen.dart';
 import 'package:aliuai_painel/metrica_screen.dart';
+import 'package:aliuai_painel/meus_pagamentos_screen.dart';
 import 'package:aliuai_painel/onboarding_dialog.dart';
 import 'package:aliuai_painel/pedidos_screen.dart';
 import 'package:aliuai_painel/widget/botao_suporte_lojista.dart';
@@ -46,7 +47,7 @@ class _DashboardScreenState extends State<HomeScreen> {
   bool _exibindoOnboarding = false;
 
   // 🚀 O COMBO DAS TELAS CONGELADAS: Evita que o construtor das telas rode a cada clique de menu!
-  final List<Widget?> _telasInstanciadas = List.generate(9, (index) => null);
+  final List<Widget?> _telasInstanciadas = List.generate(10, (index) => null);
 
   @override
   void initState() {
@@ -93,6 +94,9 @@ class _DashboardScreenState extends State<HomeScreen> {
           _telasInstanciadas[index] = CadernetaFiadoScreen(lojaId: _lojaIdReal!);
           break;
         case 8:
+          _telasInstanciadas[index] = MeusPagamentosScreen(lojaId: _lojaIdReal!);
+          break;
+        case 9:
           _telasInstanciadas[index] = const SegurancaScreen();
           break;
       }
@@ -323,7 +327,9 @@ class _DashboardScreenState extends State<HomeScreen> {
             lineDivider(),
             _buildItemMenu(index: 7, titulo: 'Cardeneta Fiado', icone: Icons.menu_book_rounded),
             lineDivider(),
-            _buildItemMenu(index: 8, titulo: 'Segurança', icone: Icons.lock_outline),
+            _buildItemMenu(index: 8, titulo: 'Meu Pagamentos', icone: Icons.receipt_long_rounded),
+            lineDivider(),
+            _buildItemMenu(index: 9, titulo: 'Segurança', icone: Icons.lock_outline),
             lineDivider(),
 
             ListTile(
@@ -380,6 +386,41 @@ class _DashboardScreenState extends State<HomeScreen> {
               )
             : null,
         actions: [
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('estabelecimentos').doc(_lojaIdReal).snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox();
+
+              // Pega a variável 'aberto' do banco (se não existir, assume true)
+              bool lojaAberta = snapshot.data!['aberto'] ?? true;
+
+              return Row(
+                children: [
+                  // Texto dinâmico para o lojista ver o eito da porteira
+                  Text(
+                    lojaAberta ? "ABERTA 🟢" : "FECHADA 🔴",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                  ),
+                  // O interruptor que desliga e liga a loja na marra
+                  Switch(
+                    value: lojaAberta,
+                    activeColor: Colors.green,
+                    inactiveThumbColor: Colors.red,
+                    inactiveTrackColor: Colors.red.shade200,
+                    onChanged: (novoStatus) async {
+                      // Atualiza o banco de dados no mesmo milissegundo sô!
+                      await FirebaseFirestore.instance.collection('estabelecimentos').doc(_lojaIdReal).update({'aberto': novoStatus});
+
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(novoStatus ? 'Porteira aberta! Boas vendas! 🌾' : 'Loja fechada com sucesso sô!'), duration: const Duration(seconds: 2)));
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 20),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: IconButton(
@@ -463,6 +504,7 @@ class _DashboardScreenState extends State<HomeScreen> {
                             _obterTelaCongelada(6),
                             _obterTelaCongelada(7),
                             _obterTelaCongelada(8),
+                            _obterTelaCongelada(9),
                           ],
                         ),
                       ),

@@ -234,6 +234,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
 
                       const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerRight, // Alinha na direita pra ficar chique sô
+                        child: TextButton(
+                          onPressed: () {
+                            // Pega o e-mail que o lojista já digitou no campo de login e dispara
+                            recuperarSenha(_emailController.text, context);
+                          },
+                          child: const Text(
+                            'Esqueceu a senha? 🤠',
+                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -258,5 +272,29 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> recuperarSenha(String email, BuildContext context) async {
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uai, digite o seu e-mail primeiro sô! 📧')));
+      return;
+    }
+
+    try {
+      // 🚀 A MÁGICA DO FIREBASE UAI:
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('E-mail de recuperação enviado para $email! Olhe a caixa de entrada ou spam uai! 📬'), backgroundColor: Colors.green));
+    } on FirebaseAuthException catch (e) {
+      String mensagemErro = 'Aconteceu um soluço no sistema sô. Tente novamente!';
+
+      if (e.code == 'user-not-found') {
+        mensagemErro = 'Esse e-mail não tá cadastrado na nossa roça não uai! ❌';
+      } else if (e.code == 'invalid-email') {
+        mensagemErro = 'Esse e-mail está com a fiação errada, digite direito sô! 🧐';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagemErro), backgroundColor: Colors.red));
+    }
   }
 }

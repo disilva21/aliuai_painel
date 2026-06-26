@@ -1,3 +1,5 @@
+import 'package:aliuai_painel/criar_pedido_manual_modal.dart';
+import 'package:aliuai_painel/util/servico_impressao_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -35,6 +37,7 @@ class PedidosScreen extends StatelessWidget {
     // 🔥 Captura a largura para orquestrar a responsividade da esteira de pedidos sô!
     final double larguraTela = MediaQuery.of(context).size.width;
     final bool ehCelularGeral = larguraTela < 800;
+    final _servicoImpressao = ServicoImpressao();
 
     return Scaffold(
       appBar: AppBar(
@@ -43,13 +46,28 @@ class PedidosScreen extends StatelessWidget {
         foregroundColor: Colors.black87,
         elevation: 0,
         backgroundColor: const Color(0xFFF5F5F5),
+        actions: [
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1E1E26), // Escuro institucional do AliUai
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.add_shopping_cart_rounded, size: 20),
+            label: const Text('Lançar Venda Balcão', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            onPressed: () => _abrirModalPedidoManual(context),
+          ),
+        ],
       ),
+
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('pedidos')
             .where('estabelecimento_id', isEqualTo: lojaId)
-            .where('forma_pagamento', isNotEqualTo: 'fiado')
-            .orderBy('forma_pagamento')
+            .where('origem', isNotEqualTo: 'fiado')
+            .orderBy('origem')
             .orderBy('criado_em', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
@@ -240,7 +258,9 @@ class PedidosScreen extends StatelessWidget {
                                           ),
                                           icon: const Icon(Icons.print_rounded, size: 18),
                                           label: const Text('Imprimir'),
-                                          onPressed: () {
+                                          onPressed: () async {
+                                            await _servicoImpressao.imprimirPedidoNativo(pedido);
+
                                             imprimirPedidoWeb(
                                               estabelecimento: pedido['estabelecimento_id'],
                                               numeroPedido: pedido['pedido'],
@@ -268,16 +288,31 @@ class PedidosScreen extends StatelessWidget {
                                     IconButton(
                                       icon: const Icon(Icons.print_rounded, color: Color(0xFFE65100)),
                                       tooltip: 'Imprimir Cupom',
-                                      onPressed: () {
-                                        imprimirPedidoWeb(
-                                          estabelecimento: pedido['estabelecimento_id'],
-                                          numeroPedido: pedido['pedido'],
-                                          nomeCliente: pedido['nome_cliente'],
-                                          tipoEntrega: pedido['endereco'],
-                                          formaPagamento: pedido['forma_pagamento'],
-                                          itens: pedido['itens'],
-                                          total: total,
-                                        );
+                                      onPressed: () async {
+                                        final Map<String, dynamic> pedidoParaImprimir = Map<String, dynamic>.from(pedido);
+
+                                        // 2. Cria um atalho fora do contexto assíncrono para o SnackBar não chiar uai
+                                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                                        scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Enviando dados para a POS58... 🌾'), duration: Duration(seconds: 1)));
+
+                                        try {
+                                          // 3. Passa a variável local limpa para o serviço de impressão sô!
+                                          await _servicoImpressao.imprimirPedidoNativo(pedidoParaImprimir);
+                                        } catch (e) {
+                                          print("Erro na fiação de impressão sô: $e");
+                                        }
+                                        // await _servicoImpressao.imprimirPedidoNativo(pedido);
+
+                                        // imprimirPedidoWeb(
+                                        //   estabelecimento: pedido['estabelecimento_id'],
+                                        //   numeroPedido: pedido['pedido'],
+                                        //   nomeCliente: pedido['nome_cliente'],
+                                        //   tipoEntrega: pedido['endereco'],
+                                        //   formaPagamento: pedido['forma_pagamento'],
+                                        //   itens: pedido['itens'],
+                                        //   total: total,
+                                        // );
                                       },
                                     ),
                                     const Spacer(),
@@ -304,6 +339,19 @@ class PedidosScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _abrirModalPedidoManual(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // 🚀 ESSENCIAL: Faz o modal subir e não ser coberto pelo teclado uai!
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) {
+        // widget.lojaId deve ser a variável que você já recebe na sua tela principal sô!
+        return CriarPedidoManualModal(lojaId: lojaId, cidadeId: '');
+      },
     );
   }
 

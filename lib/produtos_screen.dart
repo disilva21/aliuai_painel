@@ -30,6 +30,8 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
   String categoriaLoja = 'cat_utilidades';
   String? nomeLoja;
 
+  String planoDaLoja = 'indefinido';
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +160,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
         // 🔥 Garante que vai ler o campo correto do banco (categoria_id ou categoria_estabelecimento sô)
         categoriaRecuperada = docLoja.data()?['categoria_id'] ?? docLoja.data()?['categoria_estabelecimento'] ?? 'cat_utilidades';
         nomeLoja = docLoja.data()?['nome'];
+        planoDaLoja = docLoja['plano_atual'] ?? 'indefinido';
       }
 
       final snapshotContagem = await _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').count().get();
@@ -417,6 +420,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                                     produto: dados, // 👈 repassa o Map dos dados do produto do Firebase sô
                                                     nomeLoja: nomeLoja ?? 'Nossa Loja',
                                                     idLoja: widget.lojaId!,
+                                                    planoDaLoja: planoDaLoja,
                                                   ),
                                                 );
                                               },
@@ -436,7 +440,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                                   barrierDismissible: false,
                                                   builder: (context) => CadastroProdutoModal(
                                                     lojaId: widget.lojaId!,
-                                                    produtoExistente: item.data() as Map<String, dynamic>?,
+                                                    produtoExisting: item.data() as Map<String, dynamic>?,
                                                     idProduto: item.id,
                                                     categoriaLoja: categoriaLoja, // 🔥 Parâmetro ajustado sô!
                                                   ),
@@ -501,6 +505,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                                 produto: dados, // 👈 repassa o Map dos dados do produto do Firebase sô
                                                 nomeLoja: nomeLoja ?? 'Nossa Loja',
                                                 idLoja: widget.lojaId!,
+                                                planoDaLoja: planoDaLoja,
                                               ),
                                             );
                                           },
@@ -521,7 +526,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                                 barrierDismissible: false,
                                                 builder: (context) => CadastroProdutoModal(
                                                   lojaId: widget.lojaId!,
-                                                  produtoExistente: item.data() as Map<String, dynamic>?,
+                                                  produtoExisting: item.data() as Map<String, dynamic>?,
                                                   idProduto: item.id,
                                                   categoriaLoja: categoriaLoja, // 🔥 Parâmetro ajustado sô!
                                                 ),

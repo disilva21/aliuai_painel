@@ -126,7 +126,7 @@ class _CadernetaFiadoScreenState extends State<CadernetaFiadoScreen> {
                           batch.set(novoPedidoRef, {
                             'estabelecimento_id': widget.lojaId, // 🏪 ID da loja para filtrar na tela de métricas
                             'criado_em': FieldValue.serverTimestamp(), // 🕒 Data/Hora para o filtro de "hoje"
-                            'forma_pagamento': 'fiado', // 💳 CHAVE CORRETA! O Canta Caixa caça 'metodo_pagamento' sô!
+                            'origem': 'fiado', // 💳 CHAVE CORRETA! O Canta Caixa caça 'metodo_pagamento' sô!
                             'total': valorCompra, // 💰 O valor total da venda
                             'itens': [
                               {'titulo': descricaoCompra, 'quantidade': 1},
