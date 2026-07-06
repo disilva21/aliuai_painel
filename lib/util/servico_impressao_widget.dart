@@ -1,121 +1,118 @@
 import 'dart:html' as html; // 📍 Essencial para rodar direto no Chrome sô!
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 class ServicoImpressao {
-  /// 🖨️ MÁGICA DA IMPRESÃO VIA NAVEGADOR WEB (USB / SISTEMA)
+  /// 🖨️ MÁGICA DA IMPRESÃO VIA NAVEGADOR WEB (TEXTO PURO COMPACTO)
   Future<void> imprimirPedidoNativo(Map<String, dynamic> pedido) async {
-    // 📱 Trava invertida: se por acaso rodar no celular, avisa o caboclo uai
     if (!kIsWeb) {
       print("Essa fiação foi feita para rodar direto no Google Chrome sô!");
       return;
     }
+    String nomeEstabelecimento = '';
+    final docLoja = await FirebaseFirestore.instance.collection('estabelecimentos').doc(pedido['estabelecimento_id']).get();
+    if (docLoja.exists) {
+      final dados = docLoja.data() as Map<String, dynamic>;
+      nomeEstabelecimento = dados['nome'] ?? '';
+    }
 
-    // 📋 Extrai e blinda os dados do pedido (reparando as tipagens uai!)
-
+    // 📋 Extrai os dados do pedido uai!
     String codigo = pedido['pedido']?.toString() ?? '000000';
-
     String origem = (pedido['origem'] ?? 'balcao').toString().toUpperCase();
-
     String clienteNome = pedido['nome_cliente'] ?? 'Cliente Casual';
-
     String clienteCelular = pedido['forma_pagamento'] ?? 'Sem celular';
-
     double total = double.tryParse(pedido['total'].toString()) ?? 0.0;
-
     List<dynamic> itens = pedido['itens'] ?? [];
 
-    // =========================================================================
-    // 📐 MONTAGEM DO CUPOM EM HTML/CSS RIGOROSO PARA 58MM SÔ!
-    // Usamos fontes nativas do sistema (Arial/Monospace) que a impressora lê liso.
-    // =========================================================================
+    DateTime agora = DateTime.now();
 
+    // 📐 Formata na marra colocando o zero na esquerda se o número for menor que 10
+    String dia = agora.day.toString().padLeft(2, '0');
+    String mes = agora.month.toString().padLeft(2, '0');
+    String ano = agora.year.toString();
+
+    String dataFormatada = "$dia/$mes/$ano";
+
+    // =========================================================================
+    // 🎯 CÁLCULO DE CENTRALIZAÇÃO DINÂMICA DO ESTABELECIMENTO SÔ
+    // =========================================================================
+    String estabelecimentoCentralizado = nomeEstabelecimento;
+    if (nomeEstabelecimento.length < 32) {
+      int espacosEsquerda = (32 - nomeEstabelecimento.length) ~/ 2;
+      estabelecimentoCentralizado = ("&nbsp;" * espacosEsquerda) + nomeEstabelecimento;
+    }
+
+    // =========================================================================
+    // 🚀 MONTAGEM DOS ITENS USANDO ESPAÇOS FÍSICOS
+    // =========================================================================
     StringBuffer itensHtml = StringBuffer();
     for (var item in itens) {
-      String prodNome = item['nome'] ?? 'Produto';
+      String prodNome = item['nome_produto'] ?? 'Produto';
       String qtd = (item['quantidade'] ?? 1).toString();
       double precoUn = double.tryParse(item['preco_unitario'].toString()) ?? 0.0;
       double subTotal = precoUn * double.tryParse(qtd)!;
 
+      String linhaValores = "$qtd x R\$ ${precoUn.toStringAsFixed(2)}";
+      String linhaSubtotal = "R\$ ${subTotal.toStringAsFixed(2)}";
+
+      int espacosNecessarios = 32 - (linhaValores.length + linhaSubtotal.length);
+      if (espacosNecessarios < 1) espacosNecessarios = 1;
+      String espacosEmBranco = "&nbsp;" * espacosNecessarios;
+
       itensHtml.write('''
-          <div style="margin-bottom: 5px;">
-            <div style="font-weight: bold;">$prodNome</div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px;">
-              <span>  $qtd x R\$ ${precoUn.toStringAsFixed(2)}</span>
-              <span>R\$ ${subTotal.toStringAsFixed(2)}</span>
-            </div>
-          </div>
-        ''');
+        $prodNome<br>
+        $linhaValores$espacosEmBranco$linhaSubtotal<br>
+        <br>
+      ''');
     }
+
+    // =========================================================================
+    // 📐 ALINHAMENTO DA DATA (32 caracteres totais sô)
+    // =========================================================================
+    int espacosData = 32 - (6 + dataFormatada.length);
+    if (espacosData < 1) espacosData = 1;
+    String espacosEmBrancoData = "&nbsp;" * espacosData;
 
     final String conteudoCupom =
         '''
         <html>
           <head>
-           <style>
-  @page { 
-    size: 58mm auto; 
-    margin: 0; 
-  }
-  body { 
-    width: 46mm; 
-    /* 1. Mudamos para Arial/Helvetica: fontes sem serifa ficam muito mais grossas e nítidas na POS58 que a Courier sô! */
-    font-family: 'Arial Black', 'Arial', sans-serif; 
-    font-size: 12px; 
-    /* 2. Forçamos o preto absoluto e adicionamos um contorno leve de texto para engrossar a letra uai! */
-    color: #000000; 
-    -webkit-text-stroke: 0.3px #000000; /* 🔥 Engrossa a fiação da letra na marra! */
-    font-weight: 900; /* Força o negrito máximo de fábrica */
-    margin: 5px;
-    padding: 0;
-  }
-  .centralizado { 
-    text-align: center; 
-    font-weight: bold;
-  }
-  /* 3. Linha preta contínua e mais grossa (Dashed/Serrilhado costuma borrar em POS58 sô) */
-  .linha { 
-    border-top: 2px solid #000000; 
-    margin: 8px 0; 
-  }
-  .flex-space { 
-    display: flex; 
-    justify-content: space-between; 
-    font-weight: bold;
-  }
-</style>
+            <meta charset="UTF-8">
+            <style>
+              @page { size: 58mm auto; margin: 0; }
+              body { 
+                width: 44mm; 
+                font-family: 'Courier New', Courier, monospace; 
+                font-size: 11px; 
+                font-weight: normal;
+                color: #000000; 
+                margin: 0px;
+                padding: 0px;
+                white-space: nowrap; 
+              }
+            </style>
           </head>
           <body>
-            <div class="centralizado" style="font-size: 12px; font-weight: bold;">=== ALIUAI ===</div>
-            <div class="centralizado" style="font-weight: bold;">PEDIDO: $codigo</div>
-            <div class="centralizado" style="font-size: 11px;">ORIGEM: $origem</div>
-            <div class="flex-space" style="font-size: 11px;">
-              <span>DATA:</span>
-              <span>HOJE SÔ</span>
-            </div>
+            $estabelecimentoCentralizado<br><br>           
+            Pedido: $codigo<br>           
+            --------------------------------<br>
+            Data: $espacosEmBrancoData$dataFormatada<br>            
+            --------------------------------<br>
+            Cliente: $clienteNome<br>
+            ${clienteCelular != 'Sem celular' ? 'Pagto: $clienteCelular<br>' : ''}
+            --------------------------------<br>
+            <br>Itens:<br>
+            <br>
             
-            <div class="linha"></div>
-            
-            <div><strong>CLIENTE:</strong> $clienteNome</div>
-            ${clienteCelular != 'Sem celular' ? '<div><strong>ZAP:</strong> $clienteCelular</div>' : ''}
-            
-            <div class="linha"></div>
-            
-            <div style="margin-bottom: 6px;"><strong>ITENS DO PEDIDO:</strong></div>
             $itensHtml
             
-            <div class="linha"></div>
-            
-            <div class="flex-space" style="font-size: 9px;">
-              <span>TOTAL:</span>
-              <span>R\$ ${total.toStringAsFixed(2)}</span>
-            </div>
-            
-            <div class="linha"></div>
-            <div class="centralizado" style="font-size: 8px;">Obrigado pela preferência! 🌾</div>
-            <div class="centralizado" style="font-size: 8px; margin-top: 2px;">AliUai - O Trator do Comércio</div>
-            
-            <div style="height: 30px;"></div> <script>
-              // 📑 Executa a impressão assim que a janelinha abrir sô!
+            --------------------------------<br>
+            TOTAL:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;R\$ ${total.toStringAsFixed(2)}<br>
+            --------------------------------<br>
+            &nbsp;&nbsp;&nbsp;Obrigado pela preferência!<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=== ALIUAI ===
+            <br><br><br>
+            <script>
               window.onload = function() {
                 window.print();
                 setTimeout(function() { window.close(); }, 500);
@@ -125,24 +122,17 @@ class ServicoImpressao {
         </html>
       ''';
 
-    // =========================================================================
-    // 🚀 DISPARANDO O CONTEÚDO DIRETO NA JANELA DO CHROME UAI
-    // =========================================================================
-    // =========================================================================
-    // 🚀 DISPARANDO O CONTEÚDO USANDO BLOB (BLINDADO CONTRA ERROS DE APIS SÔ!)
-    // =========================================================================
-    // 1. Cria um arquivo HTML virtual em memória com o cupom uai
-    final blob = html.Blob([conteudoCupom], 'text/html');
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    final blob = html.Blob([conteudoCupom], 'text/html;charset=utf-8');
     final String urlUrl = html.Url.createObjectUrlFromBlob(blob);
 
-    // 2. Manda o Chrome abrir direto essa URL do cupom numa nova aba sô!
-    final html.WindowBase? janelaImpressao = html.window.open(urlUrl, 'Imprimir Pedido AliUai', 'width=350,height=600');
+    final html.WindowBase? janelaImpressao = html.window.open(urlUrl, 'Imprimir_$timestamp', 'width=350,height=600');
 
     if (janelaImpressao == null) {
-      print("A porteira do Chrome barrou o pop-up da impressão sô! Ative os pop-ups no navegador.");
+      print("A porteira do Chrome barrou os pop-ups uai!");
     }
 
-    // 3. Limpa a memória depois de 5 segundos para o trator não atolar sô
     Future.delayed(const Duration(seconds: 5), () {
       html.Url.revokeObjectUrl(urlUrl);
     });

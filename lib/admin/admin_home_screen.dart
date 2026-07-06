@@ -1,5 +1,6 @@
 import 'package:aliuai_painel/admin/admin_planos_cidade_screen.dart';
 import 'package:aliuai_painel/admin/central_suporte_admin_aba.dart';
+import 'package:aliuai_painel/admin/gerenciamento_categorias_page.dart';
 import 'package:aliuai_painel/admin/painel_utilidades_screen.dart';
 import 'package:aliuai_painel/admin_lojas_screen.dart';
 
@@ -394,10 +395,10 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
 
                     if (_userRole == 'admin')
                       ListTile(
-                        leading: Icon(Icons.location_city, color: _abaSelecionada == 2 ? Colors.cyanAccent : Colors.grey),
+                        leading: Icon(Icons.location_city, color: _abaSelecionada == 3 ? Colors.cyanAccent : Colors.grey),
                         title: Text(
                           'Planos por cidade',
-                          style: TextStyle(color: _abaSelecionada == 2 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: _abaSelecionada == 3 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
                         ),
                         tileColor: _abaSelecionada == 3 ? Colors.white.withOpacity(0.05) : Colors.transparent,
                         onTap: () => setState(() => _abaSelecionada = 3),
@@ -421,6 +422,17 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                             _abaSelecionada = 1;
                           });
                         },
+                      ),
+
+                    if (_userRole == 'admin')
+                      ListTile(
+                        leading: Icon(Icons.location_city, color: _abaSelecionada == 4 ? Colors.cyanAccent : Colors.grey),
+                        title: Text(
+                          'Gestão Categorias',
+                          style: TextStyle(color: _abaSelecionada == 4 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                        ),
+                        tileColor: _abaSelecionada == 4 ? Colors.white.withOpacity(0.05) : Colors.transparent,
+                        onTap: () => setState(() => _abaSelecionada = 4),
                       ),
                     const Spacer(),
                     const Divider(color: Colors.white12, height: 1),
@@ -462,6 +474,8 @@ class _AdminDashboardScreenState extends State<AdminHomeScreen> {
                     const PainelUtilidadesPage(),
 
                     const AdminPlanosCidadeScreen(),
+
+                    const GerenciamentoCategoriasPage(),
                   ],
                 ),
               ),

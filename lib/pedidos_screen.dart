@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:web/web.dart' as web;
 import 'dart:js_interop';
 
+@JS('window.open')
+external JSObject? _windowOpen(JSString url, JSString name, JSString features);
+
 class PedidosScreen extends StatelessWidget {
   final String lojaId;
 
@@ -261,15 +264,17 @@ class PedidosScreen extends StatelessWidget {
                                           onPressed: () async {
                                             await _servicoImpressao.imprimirPedidoNativo(pedido);
 
-                                            imprimirPedidoWeb(
-                                              estabelecimento: pedido['estabelecimento_id'],
-                                              numeroPedido: pedido['pedido'],
-                                              nomeCliente: pedido['nome_cliente'],
-                                              tipoEntrega: pedido['endereco'],
-                                              formaPagamento: pedido['forma_pagamento'],
-                                              itens: pedido['itens'],
-                                              total: total,
-                                            );
+                                            // imprimirCupomWeb();
+
+                                            // imprimirPedidoWeb(
+                                            //   estabelecimento: pedido['estabelecimento_id'],
+                                            //   numeroPedido: pedido['pedido'],
+                                            //   nomeCliente: pedido['nome_cliente'],
+                                            //   tipoEntrega: pedido['endereco'],
+                                            //   formaPagamento: pedido['forma_pagamento'],
+                                            //   itens: pedido['itens'],
+                                            //   total: total,
+                                            // );
                                           },
                                         ),
                                       ],
@@ -299,10 +304,11 @@ class PedidosScreen extends StatelessWidget {
                                         try {
                                           // 3. Passa a variável local limpa para o serviço de impressão sô!
                                           await _servicoImpressao.imprimirPedidoNativo(pedidoParaImprimir);
+                                          // imprimirCupomWeb();
                                         } catch (e) {
                                           print("Erro na fiação de impressão sô: $e");
                                         }
-                                        // await _servicoImpressao.imprimirPedidoNativo(pedido);
+                                        await _servicoImpressao.imprimirPedidoNativo(pedido);
 
                                         // imprimirPedidoWeb(
                                         //   estabelecimento: pedido['estabelecimento_id'],
@@ -355,6 +361,55 @@ class PedidosScreen extends StatelessWidget {
     );
   }
 
+  void imprimirCupomWeb() {
+    final String conteudoCupom = '''
+    <html>
+      <head>
+        <style>
+          @page { size: 58mm auto; margin: 0; }
+          body { 
+            width: 48mm; 
+            margin: 5mm; 
+            font-family: 'Courier New', Courier, monospace; 
+            font-size: 12px; 
+          }
+          .centralizado { text-align: center; font-weight: bold; }
+          .linha { border-bottom: 1px dashed #000; margin: 5px 0; }
+          .item { display: flex; justify-content: space-between; }
+        </style>
+      </head>
+      <body>
+        <div class="centralizado">*** ALIUAI DELIVERY ***</div>
+        <div class="centralizado">Pedido: #1024</div>
+        <div class="linha"></div>
+        <div class="item"><span>1x X-Tudo</span> <span>R\$ 25,00</span></div>
+        <div class="item"><span>1x Coca Lata</span> <span>R\$ 6,00</span></div>
+        <div class="linha"></div>
+        <div class="item" style="font-weight: bold;"><span>Total:</span> <span>R\$ 31,00</span></div>
+        <br><br>
+
+        <!-- 🚀 O SEGREDO DO TRATOR TÁ AQUI SÔ: -->
+        <!-- O próprio HTML se encarrega de disparar o print e fechar a janela assim que carregar uai! -->
+        <script>
+          window.onload = function() {
+            window.print();
+            // Dá um tempinho pequeno pro lojista clicar e fecha a aba sô
+            setTimeout(function() { window.close(); }, 500);
+          };
+        </script>
+      </body>
+    </html>
+  ''';
+
+    // Abre a janela limpinha uai
+    dynamic janela = _windowOpen(''.toJS, 'ImpressaoAliUai'.toJS, 'width=400,height=600'.toJS);
+
+    if (janela != null) {
+      // Injeta o HTML com o script embutido sô!
+      janela.document.body.innerHTML = conteudoCupom;
+    }
+  }
+
   void imprimirPedidoWeb({
     required String estabelecimento,
     required String numeroPedido,
@@ -364,6 +419,7 @@ class PedidosScreen extends StatelessWidget {
     required List<dynamic> itens,
     required double total,
   }) {
+    // 🚀 Mudamos o CSS para ser o mais rústico possível pro driver genérico ler puro sô!
     String conteudoHtml =
         '''
     <html>
@@ -372,26 +428,33 @@ class PedidosScreen extends StatelessWidget {
           @page { size: auto; margin: 0mm; }
           body { 
             font-family: 'Courier New', Courier, monospace;
-            width: 280px;
-            margin: 10px;
-            font-size: 12px;
+            width: 44mm;
+            margin: 1mm;
+            font-size: 11px;
             color: #000;
           }
           .centralizado { text-align: center; }
-          .linha { border-bottom: 1px dashed #000; margin: 8px 0; }
-          .item { display: flex; justify-content: space-between; }
           .negrito { font-weight: bold; }
+          /* 🚀 Tabela pura para travar as linhas uma embaixo da outra sô */
+          table { width: 100%; border-collapse: collapse; margin: 0; padding: 0; }
+          td { padding: 1px 0; margin: 0; vertical-align: top; }
         </style>
       </head>
       <body>
-        <div class="centralizado negrito" style="font-size: 16px;">🔥 PAINEL ALIUAI 🔥</div>
+        <div class="centralizado negrito" style="font-size: 13px;">🔥 $estabelecimento 🔥</div>
         <div class="centralizado">Pedido: #$numeroPedido</div>
-        <div class="linha"></div>
-        <div><span class="negrito">Cliente:</span> $nomeCliente</div>
-        <div><span class="negrito">Operação:</span> $tipoEntrega</div>
-        <div><span class="negrito">Pagamento:</span> $formaPagamento</div>
-        <div class="linha"></div>
+        <div class="centralizado">--------------------------------</div>
+        
+        <table>
+          <tr><td class="negrito" style="width: 30%;">Cliente:</td><td>$nomeCliente</td></tr>
+          <tr><td class="negrito">Entrega:</td><td>$tipoEntrega</td></tr>
+          <tr><td class="negrito">Pagam.:</td><td>$formaPagamento</td></tr>
+        </table>
+        
+        <div class="centralizado">--------------------------------</div>
         <div class="negrito">ITENS DO PEDIDO:</div>
+        
+        <table>
     ''';
 
     for (var itemDynamic in itens) {
@@ -401,23 +464,30 @@ class PedidosScreen extends StatelessWidget {
       final double precoOriginal = (item['preco_unitario'] ?? 0.0).toDouble();
       final String precoFormatado = precoOriginal.toStringAsFixed(2).replaceAll('.', ',');
 
+      // 🚀 Cada item vira uma linha física da tabela uai
       conteudoHtml +=
           '''
-      <div class="item">
-        <span>${qtd}x $nome</span>
-        <span>R\$ $precoFormatado</span>
-      </div>
-      ''';
+          <tr>
+            <td style="width: 75%;">${qtd}x $nome</td>
+            <td style="width: 25%; text-align: right;">R\$$precoFormatado</td>
+          </tr>
+          ''';
     }
 
     conteudoHtml +=
         '''
-        <div class="linha"></div>
-        <div class="item negrito" style="font-size: 14px;">
-          <span>TOTAL:</span>
-          <span>R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}</span>
-        </div>
-        <br>
+        </table>
+        
+        <div class="centralizado">--------------------------------</div>
+        
+        <table>
+          <tr class="negrito" style="font-size: 12px;">
+            <td style="width: 70%;">TOTAL:</td>
+            <td style="width: 30%; text-align: right;">R\$${total.toStringAsFixed(2).replaceAll('.', ',')}</td>
+          </tr>
+        </table>
+        
+        <div class="centralizado">--------------------------------</div>
         <div class="centralizado">Obrigado pela preferência! 🤠</div>
         <br><br>
       </body>
