@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -208,6 +209,11 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Produto salvo com sucesso! 🎉'), backgroundColor: Colors.green));
       }
     } catch (e) {
+      print("====== TESTE DE FILTRAÇÃO DO GERENTE ======");
+      print("1. ID DA LOJA REAL: ${widget.lojaId}");
+      print("2. UID DO COMPANHEIRO LOGADO: ${FirebaseAuth.instance.currentUser?.uid}");
+      print("3. EMAIL DO LOGADO: ${FirebaseAuth.instance.currentUser?.email}");
+      print("===========================================");
       print('Erro ao salvar produto: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar o produto: $e'), backgroundColor: Colors.red));
@@ -249,7 +255,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Ajuste o Enquadramento Quadrado (1:1) sô:',
+                    'Ajuste o Enquadramento Quadrado (16:10) sô:',
                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   const SizedBox(height: 12),
@@ -260,7 +266,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                     child: Crop(
                       image: _bytesImagemOriginal!,
                       controller: _cropController,
-                      aspectRatio: 1.0,
+                      aspectRatio: 16 / 10,
 
                       // 🚀 ATUALIZADO: Abrimos a caixinha 'result' para pegar os bytes reais sô!
                       onCropped: (result) {
@@ -396,8 +402,8 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
                       Column(
                         children: [
                           Container(
-                            width: 120,
-                            height: 120,
+                            width: 250,
+                            height: 160,
                             decoration: BoxDecoration(
                               color: Colors.grey[200],
                               // shape: BoxShape.circle,

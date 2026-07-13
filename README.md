@@ -24,7 +24,7 @@ firebase deploy --only hosting:painel-aliuai
 firebase deploy --only hosting:aliuai
 
 ## Deploy PROD
-flutter build web -t lib/main_prod.dart html --release
+flutter build web -t lib/main_prod.dart html --release --no-tree-shake-icons
 firebase deploy --only hosting:painel-aliuai --project aliuai
 
 ## Deploy DEV

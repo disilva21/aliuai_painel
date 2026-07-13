@@ -40,13 +40,13 @@ class _LoginScreenState extends State<LoginScreen> {
       UserCredential? userCredential;
 
       try {
-        // 1. TENTA LOGAR NORMALMENTE (Caso a loja já tenha passado pelo primeiro acesso)
+        // 1. TENTA LOGAR NORMALMENTE (Caso a loja ou funcionário já tenham passado pelo primeiro acesso)
         userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(email: emailDigitado, password: senhaDigitada);
       } on FirebaseAuthException catch (authError) {
-        // 2. SE NÃO LOGAR, VERIFICA SE É O PRIMEIRO ACESSO DA LOJA CRIADA PELO ADMIN
+        // 2. SE NÃO LOGAR, VERIFICA SE É O PRIMEIRO ACESSO (DA LOJA OU DO FUNCIONÁRIO)
         if (authError.code == 'user-not-found' || authError.code == 'wrong-password' || authError.code == 'invalid-credential') {
-          // Procura na coleção 'estabelecimentos' se existe esse e-mail com essa senha provisória
-          final queryPrimeiroAcesso = await FirebaseFirestore.instance
+          // 2.1 Tenta achar primeiro na coleção 'estabelecimentos' (Primeiro acesso do Lojista)
+          final queryPrimeiroAcessoLoja = await FirebaseFirestore.instance
               .collection('estabelecimentos')
               .where('email', isEqualTo: emailDigitado)
               .where('senha_provisoria', isEqualTo: senhaDigitada)
@@ -54,11 +54,11 @@ class _LoginScreenState extends State<LoginScreen> {
               .limit(1)
               .get();
 
-          if (queryPrimeiroAcesso.docs.isNotEmpty) {
+          if (queryPrimeiroAcessoLoja.docs.isNotEmpty) {
             // O lojista bate com o cadastro do Admin! Criamos a conta oficial dele no Auth agora
             userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: emailDigitado, password: senhaDigitada);
 
-            final docId = queryPrimeiroAcesso.docs.first.id;
+            final docId = queryPrimeiroAcessoLoja.docs.first.id;
 
             // Vincula o UID gerado ao documento da loja e remove a senha provisória por segurança
             await FirebaseFirestore.instance.collection('estabelecimentos').doc(docId).update({
@@ -66,40 +66,84 @@ class _LoginScreenState extends State<LoginScreen> {
               'senha_provisoria': FieldValue.delete(), // Deleta a senha em texto limpo do banco
             });
           } else {
-            // Se não achou a senha provisória nem o usuário no Auth, joga o erro na tela
-            throw FirebaseAuthException(code: 'acesso-invalido', message: 'E-mail ou senha incorretos, ou cadastro ainda não liberado pelo administrador.');
+            // 2.2 Se não achou na loja, tenta na coleção 'funcionarios' (Primeiro acesso do Funcionário)
+            final queryPrimeiroAcessoFunc = await FirebaseFirestore.instance
+                .collection('funcionarios')
+                .where('email', isEqualTo: emailDigitado)
+                .where('senha_padrao', isEqualTo: senhaDigitada)
+                .where('ativo', isEqualTo: true)
+                .limit(1)
+                .get();
+
+            if (queryPrimeiroAcessoFunc.docs.isNotEmpty) {
+              // O funcionário bate com o cadastro feito pelo lojista! Criamos a conta oficial dele no Auth agora
+              userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: emailDigitado, password: senhaDigitada);
+
+              final docIdFunc = queryPrimeiroAcessoFunc.docs.first.id;
+
+              // Atualiza o documento do funcionário com o UID e remove a senha padrão provisória
+              await FirebaseFirestore.instance.collection('funcionarios').doc(docIdFunc).update({
+                'uid': userCredential.user!.uid,
+                'senha_padrao': FieldValue.delete(),
+                'precisa_trocar_senha': true, // Mantém a regra para exigir troca na primeira entrada se desejar
+              });
+            } else {
+              // Se não achou a senha em nenhuma das coleções nem o usuário no Auth, joga o erro na tela
+              throw FirebaseAuthException(code: 'acesso-invalido', message: 'E-mail ou senha incorretos, ou cadastro ainda não liberado.');
+            }
           }
         } else {
           throw authError;
         }
       }
 
-      // 3. VALIDAÇÃO FINAL DE SEGURANÇA SE A LOJA ESTÁ ATIVA
-      final docLoja = await FirebaseFirestore.instance.collection('estabelecimentos').where('email', isEqualTo: emailDigitado).limit(1).get();
+      // 3. VALIDAÇÃO FINAL DE SEGURANÇA (Se é Dono ou se é Funcionário)
+      final userUid = FirebaseAuth.instance.currentUser!.uid;
+
+      // 3.1 Tenta encontrar na coleção 'estabelecimentos' (Dono)
+      final docLoja = await FirebaseFirestore.instance.collection('estabelecimentos').where('uid', isEqualTo: userUid).limit(1).get();
 
       if (docLoja.docs.isNotEmpty) {
         final dados = docLoja.docs.first.data();
 
         if (dados['ativo'] == true) {
           if (mounted) {
-            // Salva o ID da loja na sessão ou passa para a próxima tela
             final String lojaId = docLoja.docs.first.id;
-
-            // Manda o lojista para o painel dele (Dashboard do Lojista)
-            Navigator.pushReplacementNamed(
-              context,
-              '/home', // Ou a rota do home do seu lojista comum
-              arguments: lojaId,
-            );
+            Navigator.pushReplacementNamed(context, '/home', arguments: lojaId);
           }
+          return;
         } else {
           await FirebaseAuth.instance.signOut();
           throw Exception('Este estabelecimento está desativado no sistema.');
         }
-      } else {
-        await FirebaseAuth.instance.signOut();
-        throw Exception('Dados do estabelecimento não encontrados.');
       }
+
+      // 3.2 Se não for dono, valida se é funcionário na coleção 'funcionarios'
+      final docFuncionario = await FirebaseFirestore.instance.collection('funcionarios').doc(userUid).get();
+
+      if (docFuncionario.exists) {
+        final dadosFunc = docFuncionario.data()!;
+
+        if (dadosFunc['ativo'] == true) {
+          if (mounted) {
+            final String lojaId = dadosFunc['estabelecimento_id'];
+            // Redireciona para a home do funcionário (ou a mesma home passando a loja e flag)
+            Navigator.pushReplacementNamed(
+              context,
+              '/home', // Ajuste a rota para o painel do funcionário se for diferente
+              arguments: lojaId,
+            );
+          }
+          return;
+        } else {
+          await FirebaseAuth.instance.signOut();
+          throw Exception('Este acesso de funcionário está desativado.');
+        }
+      }
+
+      // Se passou pelo Auth mas não está em nenhuma das duas coleções do Firestore
+      await FirebaseAuth.instance.signOut();
+      throw Exception('Dados do usuário não encontrados no sistema.');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception:', '')), backgroundColor: Colors.red));
@@ -239,29 +283,38 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: TextButton(
                           onPressed: () {
                             // Pega o e-mail que o lojista já digitou no campo de login e dispara
-                            recuperarSenha(_emailController.text, context);
+                            _modalEsqueciSenha(context);
                           },
                           child: const Text(
-                            'Esqueceu a senha? 🤠',
-                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                            'Primeiro Acesso / Recuperar Senha? 🤠',
+                            style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Sua empresa não está no aliuai?'),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const CadastroScreen()));
-                            },
-                            child: const Text(
-                              'Cadastre-se aqui',
-                              style: TextStyle(color: Color(0xFFE65100), fontWeight: FontWeight.bold),
-                            ),
+                      Card(
+                        color: Colors.amber[50],
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                'Sua empresa não está no aliuai?',
+                                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const CadastroScreen()));
+                                },
+                                child: const Text(
+                                  'Cadastre-se aqui',
+                                  style: TextStyle(color: Color(0xFFE65100), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -274,27 +327,68 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> recuperarSenha(String email, BuildContext context) async {
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uai, digite o seu e-mail primeiro sô! 📧')));
-      return;
-    }
+  void _modalEsqueciSenha(BuildContext context) {
+    final emailController = TextEditingController();
 
-    try {
-      // 🚀 A MÁGICA DO FIREBASE UAI:
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 20, left: 20, right: 20, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Puxador central
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 20),
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('E-mail de recuperação enviado para $email! Olhe a caixa de entrada ou spam uai! 📬'), backgroundColor: Colors.green));
-    } on FirebaseAuthException catch (e) {
-      String mensagemErro = 'Aconteceu um soluço no sistema sô. Tente novamente!';
+            const Icon(Icons.lock_reset_rounded, size: 48, color: Color(0xFFE65100)),
+            const SizedBox(height: 16),
 
-      if (e.code == 'user-not-found') {
-        mensagemErro = 'Esse e-mail não tá cadastrado na nossa roça não uai! ❌';
-      } else if (e.code == 'invalid-email') {
-        mensagemErro = 'Esse e-mail está com a fiação errada, digite direito sô! 🧐';
-      }
+            const Text('Criar/Recuperar acesso', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('Digite seu e-mail cadastrado e enviaremos as instruções para definir uma nova senha.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+            const SizedBox(height: 24),
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagemErro), backgroundColor: Colors.red));
-    }
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'E-mail', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 24),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100), padding: const EdgeInsets.symmetric(vertical: 16)),
+                onPressed: () async {
+                  if (emailController.text.isNotEmpty) {
+                    // Ação de enviar o e-mail
+                    await FirebaseAuth.instance.sendPasswordResetEmail(email: emailController.text.trim());
+
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Instruções enviadas para seu e-mail, verifique lá! 📧')));
+                    }
+                  }
+                },
+                child: const Text(
+                  'Enviar instruções',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

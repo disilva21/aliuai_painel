@@ -383,7 +383,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
         await batch.commit();
 
         if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => HomeScreen()), (Route<dynamic> route) => false);
+          Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => HomeScreen(lojaId: idAmigavel)), (Route<dynamic> route) => false);
 
           String msgBoasVindas = aplicouCampanhaGratis
               ? 'Seja bem-vindo sô! Você ganhou a promoção de lançamento da sua cidade! 🎁'

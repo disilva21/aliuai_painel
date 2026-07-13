@@ -28,7 +28,7 @@ class AliuaiPainelApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginScreen(),
         '/admin': (context) => const AdminLoginScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const HomeScreen(lojaId: null),
         '/admin/home': (context) => const AdminHomeScreen(),
         '/termos': (context) => const TermosUsoPage(),
       },

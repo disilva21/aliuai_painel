@@ -261,14 +261,16 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('🏷️ Gestão de Ofertas', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                 Text(
                   'Limites: $_promocoesAtivasAgora / $_limitePromocoes',
                   style: TextStyle(fontWeight: FontWeight.bold, color: _promocoesAtivasAgora >= _limitePromocoes ? Colors.red : Colors.orange),
                 ),
+                const SizedBox(height: 4),
+                const Text('Ative ou pause suas promoções em tempo real.', style: TextStyle(color: Colors.grey, fontSize: 13)),
               ],
             ),
             const SizedBox(height: 32),
@@ -415,7 +417,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      bottomNavigationBar: FloatingActionButton.extended(
         onPressed: _abrirModalNovaPromocao,
         backgroundColor: const Color(0xFFE65100),
         icon: const Icon(Icons.add, color: Colors.white),

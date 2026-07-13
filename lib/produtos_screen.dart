@@ -398,57 +398,79 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                                     padding: EdgeInsets.symmetric(vertical: 8.0),
                                     child: Divider(color: Color(0xFFF5F5F5)),
                                   ),
+                                  Text(
+                                    'R\$ ${preco.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFE65100)),
+                                  ),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment: CrossAxisAlignment.center, // Garante alinhamento vertical no meio
                                     children: [
-                                      Text(
-                                        'R\$ ${preco.toStringAsFixed(2)}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFE65100)),
-                                      ),
-                                      Row(
-                                        children: [
-                                          const Text('Gerar Panfleto', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                          Padding(
-                                            padding: const EdgeInsets.only(right: 20),
-                                            child: IconButton(
-                                              icon: const Icon(Icons.campaign_rounded, color: Colors.purple, size: 24),
-                                              tooltip: 'Gerar Panfleto de Oferta 📸',
-                                              onPressed: () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) => DialogPanfleto(
-                                                    produto: dados, // 👈 repassa o Map dos dados do produto do Firebase sô
-                                                    nomeLoja: nomeLoja ?? 'Nossa Loja',
-                                                    idLoja: widget.lojaId!,
-                                                    planoDaLoja: planoDaLoja,
-                                                  ),
-                                                );
-                                              },
+                                      // 💵 Preço do Produto (Fica firme na esquerda)
+                                      const SizedBox(width: 8), // Um espacinho de segurança
+                                      // 🎯 A MÁGICA ESTÁ AQUI: Trocamos a Row interna por Wrap para não quebrar no celular!
+                                      Expanded(
+                                        child: Wrap(
+                                          alignment: WrapAlignment.end, // Alinha os botões para a direita
+                                          crossAxisAlignment: WrapCrossAlignment.center, // Alinha verticalmente os itens do Wrap
+                                          spacing: 12.0, // Espaço horizontal entre as ações
+                                          runSpacing: 8.0, // Espaço vertical SE alguma ação precisar pular de linha no celular pequeno
+                                          children: [
+                                            // 📢 Ação: Gerar Panfleto
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min, // Ocupa só o espaço necessário
+                                              children: [
+                                                const Text('Panfleto', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                                IconButton(
+                                                  constraints: const BoxConstraints(), // Remove margens exageradas do IconButton
+                                                  padding: const EdgeInsets.all(4),
+                                                  icon: const Icon(Icons.campaign_rounded, color: Colors.purple, size: 24),
+                                                  tooltip: 'Gerar Panfleto de Oferta 📸',
+                                                  onPressed: () {
+                                                    showDialog(
+                                                      context: context,
+                                                      builder: (context) => DialogPanfleto(produto: dados, nomeLoja: nomeLoja ?? 'Nossa Loja', idLoja: widget.lojaId!, planoDaLoja: planoDaLoja),
+                                                    );
+                                                  },
+                                                ),
+                                              ],
                                             ),
-                                          ),
 
-                                          const Text('Disponível', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                          Switch(value: disponivel, activeColor: const Color(0xFFE65100), onChanged: (val) => _alternarDisponibilidade(item.id, disponivel)),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
-                                            child: IconButton(
-                                              icon: const Icon(Icons.edit_note, color: Color(0xFFE65100), size: 24),
-                                              onPressed: () {
-                                                showDialog(
-                                                  context: context,
-                                                  barrierDismissible: false,
-                                                  builder: (context) => CadastroProdutoModal(
-                                                    lojaId: widget.lojaId!,
-                                                    produtoExisting: item.data() as Map<String, dynamic>?,
-                                                    idProduto: item.id,
-                                                    categoriaLoja: categoriaLoja, // 🔥 Parâmetro ajustado sô!
-                                                  ),
-                                                ).then((_) => _buscarLimiteDeProdutos());
-                                              },
+                                            // 🔄 Ação: Disponível (Switch)
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Text('Disponível', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                                SizedBox(
+                                                  height: 30, // Encolhe a altura padrão do Switch para não esticar a linha
+                                                  child: Switch(value: disponivel, activeColor: const Color(0xFFE65100), onChanged: (val) => _alternarDisponibilidade(item.id, disponivel)),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ],
+
+                                            // 📝 Botão Editar (Agora ele aparece de qualquer jeito sô!)
+                                            Container(
+                                              decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+                                              child: IconButton(
+                                                constraints: const BoxConstraints(),
+                                                padding: const EdgeInsets.all(6),
+                                                icon: const Icon(Icons.edit_note, color: Color(0xFFE65100), size: 24),
+                                                onPressed: () {
+                                                  showDialog(
+                                                    context: context,
+                                                    barrierDismissible: false,
+                                                    builder: (context) => CadastroProdutoModal(
+                                                      lojaId: widget.lojaId!,
+                                                      produtoExisting: item.data() as Map<String, dynamic>?,
+                                                      idProduto: item.id,
+                                                      categoriaLoja: categoriaLoja,
+                                                    ),
+                                                  ).then((_) => _buscarLimiteDeProdutos());
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
