@@ -10,7 +10,7 @@ import 'dart:html' as html;
 import 'package:html_editor_enhanced/html_editor.dart';
 
 class PerfilStoreScreen extends StatefulWidget {
-  final String lojaId; // ✨ Agora o parâmetro é obrigatório e garantido pela Dashboard
+  final String lojaId; // ✨ Parâmetro obrigatório e garantido pela Dashboard
 
   const PerfilStoreScreen({super.key, required this.lojaId});
 
@@ -23,7 +23,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
   final _firestore = FirebaseFirestore.instance;
   final _storage = FirebaseStorage.instance;
 
-  // Controllers
+  // Controllers dos campos do formulário
   final _nomeController = TextEditingController();
   final HtmlEditorController _descricaoEditorController = HtmlEditorController();
   final _enderecoController = TextEditingController();
@@ -49,6 +49,10 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
   String _logoUrl = '';
   List<Map<String, String>> _categoriasLojas = [];
   String _descricaoInicial = '';
+
+  // 🔥 NOVAS VARIÁVEIS DE STATUS DO PLANO E MODO GUIA SÔ!
+  String _planoAtual = 'indefinido';
+  bool _somenteGuia = false;
 
   @override
   void initState() {
@@ -86,7 +90,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
       final snapshot = await FirebaseFirestore.instance
           .collection('cidades')
           .where('uf', isEqualTo: uf)
-          .orderBy('nome') // Garante que a lista vem de A a Z
+          .orderBy('nome') // Garante ordenação alfabética
           .get();
 
       List<Map<String, String>> listaCidades = [];
@@ -106,7 +110,9 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     } catch (e) {
       setState(() => _carregandoCidades = false);
       debugPrint('Erro ao buscar cidades no Firestore: $e');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao carregar cidades. Verifique os índices do Firestore.'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao carregar cidades. Verifique os índices do Firestore.'), backgroundColor: Colors.red));
+      }
     }
   }
 
@@ -125,6 +131,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
         setState(() {
           _categoriasLojas = listaTemporaria;
           _carregarEstados();
+
           if (docLoja.exists) {
             final dados = docLoja.data() as Map<String, dynamic>;
 
@@ -138,6 +145,10 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
             _fazDelivery = dados['is_delivery'] ?? true;
             _logoUrl = dados['logo_url'] ?? '';
             _taxaEntregaController.text = (dados['taxa_entrega'] != null) ? dados['taxa_entrega'].toString() : '';
+
+            // 🔥 LEITURA DOS DADOS DO PLANO E MODO GUIA SÔ!
+            _planoAtual = dados['plano_atual'] ?? 'indefinido';
+            _somenteGuia = dados['somente_guia'] ?? (_planoAtual == 'guia');
 
             FirebaseFirestore.instance.collection('cidades').doc('${dados['cidade_id']}').get().then((snapshot) {
               if (snapshot.exists && mounted) {
@@ -160,7 +171,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
         });
       }
     } catch (e) {
-      print('Erro ao carregar dados do perfil: $e');
+      debugPrint('Erro ao carregar dados do perfil: $e');
       if (mounted) setState(() => _carregando = false);
     }
   }
@@ -235,6 +246,78 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     }
   }
 
+  Widget _buildCardStatusExibicao(bool ehCelular) {
+    final bool eModoGuia = _somenteGuia || _planoAtual == 'guia';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: EdgeInsets.all(ehCelular ? 14 : 18),
+      decoration: BoxDecoration(
+        color: eModoGuia ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: eModoGuia ? const Color(0xFFE65100).withOpacity(0.5) : Colors.green.withOpacity(0.5), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(eModoGuia ? Icons.location_on_rounded : Icons.store_rounded, color: eModoGuia ? const Color(0xFFE65100) : Colors.green[800], size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  eModoGuia ? 'Modo de Exibição: Guia Comercial' : 'Modo de Exibição: Catálogo Ativo',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: eModoGuia ? const Color(0xFFE65100) : Colors.green[800]),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: eModoGuia ? Colors.orange.withOpacity(0.15) : Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                child: Text(
+                  eModoGuia ? 'GRÁTIS' : 'PLANO ATIVO',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: eModoGuia ? const Color(0xFFE65100) : Colors.green[800]),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            eModoGuia
+                ? 'Sua loja exibe endereço, horário e WhatsApp na vitrine da cidade, sem catálogo de produtos.'
+                : 'Sua loja possui catálogo de produtos e ofertas ativas para receber pedidos dos clientes.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey[800], height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: InkWell(
+              onTap: () {
+                // Notifica o lojista e direciona visualmente para a aba de planos no menu
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Acesse a aba "Planos" no menu lateral para alterar seu modo de exibição! 🚀'), backgroundColor: Color(0xFFE65100), duration: Duration(seconds: 4)),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      eModoGuia ? 'Quero Cadastrar Produtos' : 'Gerenciar Plano e Limites',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFFE65100)),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFFE65100)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_carregando) {
@@ -300,7 +383,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     final dropdownCidade = DropdownButtonFormField<String>(
       value: _cidadeSelecionada,
       disabledHint: Text(_carregandoCidades ? 'Buscando...' : 'Selecione o Estado'),
-      decoration: const InputDecoration(labelText: 'Cidade', border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_city_rounded)),
+      decoration: const InputDecoration(labelText: 'Cidade Sede', border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_city_rounded)),
       items: _cidades.isNotEmpty
           ? _cidades
                 .map(
@@ -326,26 +409,21 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
       ),
       inputFormatters: [
         TextInputFormatter.withFunction((oldValue, newValue) {
-          // 1. Remove tudo o que não for número sô
           String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-          // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
           if (newValue.text.length < oldValue.text.length) {
             return newValue;
           }
 
           String textoFormatado = "";
 
-          // 2. Monta a máscara certinha sem espaços duplicados sô!
-          if (texto.length > 0) {
+          if (texto.isNotEmpty) {
             textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
           }
           if (texto.length > 2) {
-            // Juntamos o fecha parêntese com o espaço padrão sô: ") "
             textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
           }
           if (texto.length > 7) {
-            // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
             textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
           }
 
@@ -369,26 +447,21 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
       ),
       inputFormatters: [
         TextInputFormatter.withFunction((oldValue, newValue) {
-          // 1. Remove tudo o que não for número sô
           String texto = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-          // Se o lojista estiver apagando, deixa o homem trabalhar em paz sô
           if (newValue.text.length < oldValue.text.length) {
             return newValue;
           }
 
           String textoFormatado = "";
 
-          // 2. Monta a máscara certinha sem espaços duplicados sô!
-          if (texto.length > 0) {
+          if (texto.isNotEmpty) {
             textoFormatado += "(${texto.substring(0, texto.length.clamp(0, 2))}";
           }
           if (texto.length > 2) {
-            // Juntamos o fecha parêntese com o espaço padrão sô: ") "
             textoFormatado += ") ${texto.substring(2, texto.length.clamp(2, 7))}";
           }
           if (texto.length > 7) {
-            // Corta os primeiros 5 dígitos do número e mete o hífen pro restante sô
             textoFormatado = "(${texto.substring(0, 2)}) ${texto.substring(2, 7)}-${texto.substring(7, texto.length.clamp(7, 11))}";
           }
 
@@ -403,7 +476,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
     return Scaffold(
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(ehCelular ? 10.0 : 10.0),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -413,7 +486,10 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
               ),
               const SizedBox(height: 4),
               const Text('Mantenha as configurações, logo e contatos da sua loja atualizados para o aplicativo.', style: TextStyle(color: Colors.grey, fontSize: 13)),
-              SizedBox(height: ehCelular ? 20 : 32),
+              SizedBox(height: ehCelular ? 20 : 28),
+
+              // 📍 CARD RESPONSIVO DO MODO DE EXIBIÇÃO (STATUS DO PLANO / GUIA)
+              _buildCardStatusExibicao(ehCelular),
 
               Card(
                 color: Colors.white,
@@ -423,7 +499,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                   side: BorderSide(color: Colors.grey[200]!),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(ehCelular ? 16.0 : 16.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -492,14 +568,15 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                         ],
 
                         const SizedBox(height: 16),
-                        // ENDEREÇO FÍSICO
+
+                        // NOME DO RESPONSÁVEL
                         TextField(
                           controller: _nomeContatoCtrl,
                           maxLength: 50,
                           decoration: InputDecoration(
                             labelText: 'Nome do Responsável / Contato',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: Icon(Icons.person_outline_rounded, color: Color(0xFFE65100)),
+                            prefixIcon: const Icon(Icons.person_outline_rounded, color: Color(0xFFE65100)),
                             counterText: '',
                           ),
                         ),
@@ -564,7 +641,6 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                         // BLOCO 3: ESTADO E CIDADE
                         if (ehCelular) ...[
                           dropdownEstado,
-
                           const SizedBox(height: 16),
                           dropdownCidade,
                         ] else ...[
@@ -606,12 +682,10 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        if (_cidadeSelecionada != null)
-                          SecaoCidadesAtuacao(
-                            lojaId: widget.lojaId, // ID do estabelecimento
-                            cidadeSedeId: _cidadeSelecionada!, // ID da cidade sede que já tá no banco!
-                          ),
+
+                        if (_cidadeSelecionada != null) SecaoCidadesAtuacao(lojaId: widget.lojaId, cidadeSedeId: _cidadeSelecionada!),
                         const SizedBox(height: 24),
+
                         // BLOCO EDITOR RICH TEXT (HTML)
                         Text('* Descrição da loja, horários de atendimento ou outras informações importantes.', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                         const SizedBox(height: 6),
@@ -630,7 +704,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                             ),
                             htmlToolbarOptions: const HtmlToolbarOptions(
                               toolbarPosition: ToolbarPosition.aboveEditor,
-                              toolbarType: ToolbarType.nativeScrollable, // Permite arrastar os botões no toque do celular sô!
+                              toolbarType: ToolbarType.nativeScrollable,
                               defaultToolbarButtons: [
                                 FontSettingButtons(fontSize: true),
                                 FontButtons(bold: true, italic: true, underline: true, clearAll: true),
@@ -647,7 +721,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                         // BOTÃO SALVAR ALTERAÇÕES ADAPTATIVO
                         SizedBox(
                           height: 50,
-                          width: ehCelular ? double.infinity : 220, // Ocupa a tela inteira no celular sô!
+                          width: ehCelular ? double.infinity : 220,
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFE65100),

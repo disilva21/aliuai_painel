@@ -136,7 +136,7 @@ class _GerenciarEventosPageState extends State<GerenciarEventosPage> {
               ),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Novo Evento', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: _planoAtual == 'indefinido'
+              onPressed: _planoAtual == 'indefinido' || _planoAtual == 'guia'
                   ? _mostrarAlertaPagamento
                   : () {
                       // 🟢 Abre a tela para CADASTRAR um novo evento usando a mesma modal lateral

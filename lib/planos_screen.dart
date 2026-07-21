@@ -1,6 +1,5 @@
 import 'package:aliuai_painel/checkout_pix_screen.dart';
 import 'package:aliuai_painel/services/plano_service.dart';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -18,6 +17,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
   bool _carregando = true;
   bool _processandoUpgrade = false;
   String _planoAtual = 'indefinido';
+  bool _somenteGuia = false;
   String? _nomeEstabelecimento;
 
   // 🔥 NOVAS VARIÁVEIS DE CONTROLE PARA O PIX INTEGRADO NA TELA SÔ!
@@ -32,7 +32,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
 
   // Criamos o widget dinâmico de preço sô:
   Widget _construirPreco(double valorPromocional, double valorOriginal) {
-    // CASO 1: Tem promoção activa (maior que zero e menor que o original)
+    // CASO 1: Tem promoção ativa (maior que zero e menor que o original)
     if (valorPromocional > 0 && valorPromocional < valorOriginal) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,16 +108,18 @@ class _PlanosScreenState extends State<PlanosScreen> {
     );
   }
 
-  /// Puxa o plano que está salvo atualmente no banco
+  /// Puxa o plano e o modo de exibição que estão salvos atualmente no banco
   Future<void> _buscarPlanoAtual() async {
     try {
       final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
 
       if (docLoja.exists && mounted) {
+        final data = docLoja.data();
         setState(() {
-          _planoAtual = docLoja.data()?['plano_atual'] ?? 'indefinido';
+          _planoAtual = data?['plano_atual'] ?? 'indefinido';
+          _somenteGuia = data?['somente_guia'] ?? (_planoAtual == 'guia');
           _carregando = false;
-          _nomeEstabelecimento = docLoja.data()?['nome'] ?? 'Estabelecimento';
+          _nomeEstabelecimento = data?['nome'] ?? 'Estabelecimento';
         });
       }
     } catch (e) {
@@ -130,25 +132,77 @@ class _PlanosScreenState extends State<PlanosScreen> {
   Color _obterCorDestaque(String idPlano) {
     switch (idPlano) {
       case 'inicial':
-        return const Color(0xFFE65100);
       case 'intermediario':
-        return const Color(0xFFE65100);
       case 'master':
-        return const Color(0xFFE65100);
       default:
         return const Color(0xFFE65100);
     }
   }
 
+  /// Ativa o Modo Guia Comercial (Apenas Endereço, Horário e WhatsApp)
+  Future<void> _ativarModoGuia() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.storefront, color: Color(0xFFE65100)),
+            SizedBox(width: 12),
+            Text('Modo Guia Comercial'),
+          ],
+        ),
+        content: const Text('No Modo Guia Comercial (Grátis), seu estabelecimento exibirá endereço, horário e WhatsApp na vitrine da cidade, sem catálogo de produtos.\n\nDeseja confirmar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Voltar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _processandoUpgrade = true);
+
+              try {
+                await _firestore.collection('estabelecimentos').doc(widget.lojaId).update({
+                  'plano_atual': 'guia',
+                  'somente_guia': true,
+                  'limite_produtos': 0,
+                  'limite_promocoes': 0,
+                  'atualizadoEm': FieldValue.serverTimestamp(),
+                  'status_pagamento': 'gratuito',
+                });
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Modo Guia Comercial ativado com sucesso sô! 📍'), backgroundColor: Colors.green));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao ativar Modo Guia: $e'), backgroundColor: Colors.red));
+                }
+              } finally {
+                if (mounted) {
+                  setState(() => _processandoUpgrade = false);
+                  _buscarPlanoAtual();
+                }
+              }
+            },
+            child: const Text('Ativar Gratuitamente', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Abre a confirmação para o lojista e integra com o fluxo novo sô!
-  void _confirmarMudancaPlano(String nomePlano, String idPlano, double valor, double valorPromocional, int limite_prod, int limite_promo) {
+  void _confirmarMudancaPlano(String nomePlano, String idPlano, double valor, double valorPromocional, int limiteProd, int limitePromo) {
     final valorPlano = valorPromocional < valor ? valorPromocional : valor;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.rocket_launch, color: Color(0xFFE65100)),
             SizedBox(width: 12),
             Text('Mudar de Plano'),
@@ -165,21 +219,24 @@ class _PlanosScreenState extends State<PlanosScreen> {
             onPressed: () async {
               Navigator.pop(context); // Fecha a janelinha do confirmation sô!
 
-              setState(() => _processandoUpgrade = true); // Liga o seu loading verde
+              setState(() => _processandoUpgrade = true); // Liga o seu loading
 
               // 🚀 Aciona o PlanoService que devolve apenas o ID gerado!
               final String? idGerado = await PlanoService.iniciarMudancaDePlano(
                 lojaId: widget.lojaId,
                 nomeLoja: _nomeEstabelecimento!,
                 idNovoPlano: idPlano,
-                limiteProd: limite_prod,
-                limitePromo: limite_promo,
+                limiteProd: limiteProd,
+                limitePromo: limitePromo,
                 valorPlano: valorPlano,
               );
 
               if (mounted) setState(() => _processandoUpgrade = false); // Desliga o load
 
               if (idGerado != null && mounted) {
+                // Ao contratar um plano comercial, remove a flag de somente_guia
+                await _firestore.collection('estabelecimentos').doc(widget.lojaId).update({'somente_guia': false});
+
                 // Se o plano contratado for PAGO (maior que 0), ativa a tela do Pix sô!
                 if (valorPlano > 0) {
                   setState(() {
@@ -187,8 +244,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                     _mostrarPix = true; // 🔥 Chaveia o layout para exibir o Pix!
                   });
                 } else {
-                  // Se for grátis, o próprio service já rodou o update e soltou o SnackBar sô.
-                  // Vamos só atualizar o plano atual na tela para o lojista ver!
+                  // Se for grátis, o próprio service já rodou o update
                   _buscarPlanoAtual();
                 }
               } else {
@@ -200,6 +256,105 @@ class _PlanosScreenState extends State<PlanosScreen> {
             child: const Text('Confirmar Alteração', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 📍 CARD RESPONSIVO DO MODO GUIA COMERCIAL
+  Widget _buildCardModoGuia(bool ehCelular) {
+    final bool eModoGuiaAtivo = _planoAtual == 'guia' || _somenteGuia;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 28),
+      padding: EdgeInsets.all(ehCelular ? 16 : 20),
+      decoration: BoxDecoration(
+        color: eModoGuiaAtivo ? const Color(0xFFFFF3E0) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: eModoGuiaAtivo ? const Color(0xFFE65100) : Colors.grey[300]!, width: eModoGuiaAtivo ? 2 : 1),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: ehCelular
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [_buildCabecalhoGuia(eModoGuiaAtivo), const SizedBox(height: 12), _buildDescricaoGuia(), const SizedBox(height: 16), _buildBotaoGuia(eModoGuiaAtivo, ehCelular: true)],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_buildCabecalhoGuia(eModoGuiaAtivo), const SizedBox(height: 8), _buildDescricaoGuia()]),
+                ),
+                const SizedBox(width: 24),
+                _buildBotaoGuia(eModoGuiaAtivo, ehCelular: false),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildCabecalhoGuia(bool eModoGuiaAtivo) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFE65100).withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.location_on, color: Color(0xFFE65100), size: 24),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Modo Guia Comercial',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E26)),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                    child: const Text(
+                      'GRÁTIS',
+                      style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                eModoGuiaAtivo ? 'Apenas presença e informações básicas' : 'Status: Ativo na vitrine da cidade',
+                style: TextStyle(fontSize: 12, fontWeight: eModoGuiaAtivo ? FontWeight.bold : FontWeight.normal, color: eModoGuiaAtivo ? const Color(0xFFE65100) : Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDescricaoGuia() {
+    return const Text(
+      'Exiba seu endereço, horário de funcionamento, telefone e WhatsApp no aplicativo. Ideal para quem deseja apenas estar localizado no guia da cidade sem cadastrar produtos.',
+      style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
+    );
+  }
+
+  Widget _buildBotaoGuia(bool eModoGuiaAtivo, {required bool ehCelular}) {
+    return SizedBox(
+      width: ehCelular ? double.infinity : null,
+      height: 44,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: eModoGuiaAtivo ? Colors.white : Colors.transparent,
+          side: BorderSide(color: eModoGuiaAtivo ? Colors.grey[400]! : const Color(0xFFE65100)),
+          foregroundColor: eModoGuiaAtivo ? Colors.black87 : const Color(0xFFE65100),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+        ),
+        onPressed: eModoGuiaAtivo ? null : _ativarModoGuia,
+        icon: Icon(eModoGuiaAtivo ? Icons.check_circle : Icons.visibility, size: 18, color: eModoGuiaAtivo ? Colors.green : const Color(0xFFE65100)),
+        label: Text(eModoGuiaAtivo ? 'Modo Guia Ativo' : 'Ativar Modo Guia', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
       ),
     );
   }
@@ -256,18 +411,21 @@ class _PlanosScreenState extends State<PlanosScreen> {
               'Escolha o plano ideal para o tamanho e a necessidade do seu estabelecimento.',
               style: TextStyle(color: Colors.grey, fontSize: ehCelular ? 13 : 14),
             ),
-            SizedBox(height: ehCelular ? 24 : 40),
+            SizedBox(height: ehCelular ? 20 : 28),
 
-            if (_planoAtual == 'indefinido')
+            // 📍 NOVO CARD RESPONSIVO DO MODO GUIA COMERCIAL
+            _buildCardModoGuia(ehCelular),
+
+            if (_planoAtual == 'indefinido' && !_somenteGuia)
               Container(
                 padding: const EdgeInsets.all(16),
                 margin: const EdgeInsets.only(bottom: 24),
                 decoration: BoxDecoration(color: Colors.yellow[100], borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: const [
+                child: const Row(
+                  children: [
                     Expanded(
                       child: Text(
-                        '🚀  Você ainda não possui um plano ativo. Por favor, escolha um plano para ativar sua loja no aplicativo.',
+                        '🚀 Você ainda não possui um plano ativo. Por favor, escolha um plano ou ative o Modo Guia Comercial para exibir sua loja.',
                         style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -280,7 +438,6 @@ class _PlanosScreenState extends State<PlanosScreen> {
               stream: _firestore.collection('planos').where('ativo', isEqualTo: true).orderBy('ordem').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  // print(snapshot.error);
                   return Center(child: Text('Erro ao carregar planos do banco: ${snapshot.error}'));
                 }
 
@@ -364,7 +521,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
     required bool ehCelular,
     bool recomendar = false,
   }) {
-    bool isPlanoAtual = _planoAtual == idPlano;
+    bool isPlanoAtual = _planoAtual == idPlano && !_somenteGuia;
 
     return Stack(
       children: [
@@ -379,7 +536,6 @@ class _PlanosScreenState extends State<PlanosScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             key: ValueKey(idPlano),
-            // 🔥 CORRIGIDO SÔ: Tiramos o SizedBox(height: double.infinity) que quebrava o Mobile!
             child: Column(
               mainAxisSize: MainAxisSize.min, // Faz o card abraçar o conteúdo no celular sô!
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,7 +591,6 @@ class _PlanosScreenState extends State<PlanosScreen> {
                   }).toList(),
                 ),
 
-                // 🎯 PULO DO GATO: O Spacer só empurra o botão para o rodapé na Web. No celular, usamos um espaço fixo!
                 if (!ehCelular) const Spacer() else const SizedBox(height: 32),
 
                 SizedBox(
@@ -452,7 +607,7 @@ class _PlanosScreenState extends State<PlanosScreen> {
                     child: Text(
                       isPlanoAtual
                           ? 'Plano Ativo'
-                          : _planoAtual == 'indefinido'
+                          : (_planoAtual == 'indefinido' || _somenteGuia)
                           ? 'Escolher Plano'
                           : 'Migrar de Plano',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),

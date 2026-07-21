@@ -624,7 +624,7 @@ class _DashboardScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          if (_statusPagamentoGeral != 'isento' && _mostrarBannerPeriodoDeGraca)
+          if (_statusPagamentoGeral != 'isento' && _mostrarBannerPeriodoDeGraca && _statusPagamentoGeral != 'gratuito')
             InkWell(
               onTap: _abrirModalPagamentoPix,
               child: Container(
