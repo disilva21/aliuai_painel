@@ -1,4 +1,6 @@
 import 'package:aliuai_painel/cadastro_screen.dart';
+import 'package:aliuai_painel/escolha_cadastro_screen.dart';
+import 'package:aliuai_painel/painel_controller_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Lógica de Autenticação no Firebase
   Future<void> _loginLojista() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _carregando = true);
@@ -40,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       UserCredential? userCredential;
 
       try {
-        // 1. TENTA LOGAR NORMALMENTE (Caso a loja ou funcionário já tenham passado pelo primeiro acesso)
+        // 1. TENTA LOGAR NORMALMENTE (Caso a loja, funcionário ou anunciante já tenham passado pelo primeiro acesso)
         userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(email: emailDigitado, password: senhaDigitada);
       } on FirebaseAuthException catch (authError) {
         // 2. SE NÃO LOGAR, VERIFICA SE É O PRIMEIRO ACESSO (DA LOJA OU DO FUNCIONÁRIO)
@@ -97,10 +98,32 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // 3. VALIDAÇÃO FINAL DE SEGURANÇA (Se é Dono ou se é Funcionário)
+      // 3. VALIDAÇÃO FINAL DE SEGURANÇA (Se é Usuário Geral, Dono Tradicional ou Funcionário)
       final userUid = FirebaseAuth.instance.currentUser!.uid;
 
-      // 3.1 Tenta encontrar na coleção 'estabelecimentos' (Dono)
+      // 🔑 3.1 NOVA FIÇÃO: Verifica se o login pertence à coleção global 'usuarios'
+      // (Isso abrange os Anunciantes e os Lojistas modernos)
+      final docUsuario = await FirebaseFirestore.instance.collection('usuarios').doc(userUid).get();
+
+      if (docUsuario.exists) {
+        final dadosUsuario = docUsuario.data()!;
+        final String role = dadosUsuario['role'] ?? 'anunciante';
+        final bool ativo = dadosUsuario['ativo'] ?? true;
+
+        if (ativo) {
+          if (mounted) {
+            // 🚀 Manda direto para o Roteador Inteligente que sabe renderizar
+            // a tela certa para o Anunciante ou para o Lojista sô!
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PainelControllerScreen()));
+          }
+          return; // Finaliza o método com sucesso sô!
+        } else {
+          await FirebaseAuth.instance.signOut();
+          throw Exception('Esta conta de usuário está desativada no sistema sô.');
+        }
+      }
+
+      // 3.2 FLUXO LEGADO: Tenta encontrar na coleção 'estabelecimentos' (Dono Legado)
       final docLoja = await FirebaseFirestore.instance.collection('estabelecimentos').where('uid', isEqualTo: userUid).limit(1).get();
 
       if (docLoja.docs.isNotEmpty) {
@@ -118,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // 3.2 Se não for dono, valida se é funcionário na coleção 'funcionarios'
+      // 3.3 FLUXO LEGADO: Se não for dono, valida se é funcionário na coleção 'funcionarios'
       final docFuncionario = await FirebaseFirestore.instance.collection('funcionarios').doc(userUid).get();
 
       if (docFuncionario.exists) {
@@ -128,11 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (mounted) {
             final String lojaId = dadosFunc['estabelecimento_id'];
             // Redireciona para a home do funcionário (ou a mesma home passando a loja e flag)
-            Navigator.pushReplacementNamed(
-              context,
-              '/home', // Ajuste a rota para o painel do funcionário se for diferente
-              arguments: lojaId,
-            );
+            Navigator.pushReplacementNamed(context, '/home', arguments: lojaId);
           }
           return;
         } else {
@@ -141,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // Se passou pelo Auth mas não está em nenhuma das duas coleções do Firestore
+      // Se passou pelo Auth mas não está em nenhuma das coleções do Firestore
       await FirebaseAuth.instance.signOut();
       throw Exception('Dados do usuário não encontrados no sistema.');
     } catch (e) {
@@ -305,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const CadastroScreen()));
+                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const EscolhaCadastroScreen()));
                                 },
                                 child: const Text(
                                   'Cadastre-se aqui',
