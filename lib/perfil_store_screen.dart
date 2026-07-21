@@ -1,3 +1,4 @@
+import 'package:aliuai_painel/widget/area_atuacao_widget.dart';
 import 'package:aliuai_painel/widget/qrcode_widget.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -563,6 +564,7 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                         // BLOCO 3: ESTADO E CIDADE
                         if (ehCelular) ...[
                           dropdownEstado,
+
                           const SizedBox(height: 16),
                           dropdownCidade,
                         ] else ...[
@@ -604,7 +606,12 @@ class _PerfilStoreScreenState extends State<PerfilStoreScreen> {
                           ),
                         ],
                         const SizedBox(height: 24),
-
+                        if (_cidadeSelecionada != null)
+                          SecaoCidadesAtuacao(
+                            lojaId: widget.lojaId, // ID do estabelecimento
+                            cidadeSedeId: _cidadeSelecionada!, // ID da cidade sede que já tá no banco!
+                          ),
+                        const SizedBox(height: 24),
                         // BLOCO EDITOR RICH TEXT (HTML)
                         Text('* Descrição da loja, horários de atendimento ou outras informações importantes.', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                         const SizedBox(height: 6),

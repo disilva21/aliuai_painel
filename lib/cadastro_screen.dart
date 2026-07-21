@@ -358,6 +358,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
           'slug': idAmigavel,
           'nome': _nomeLojaController.text.trim(),
           'cidade_id': idCidadeFinal,
+          'cidades_expansao': [idCidadeFinal], // Inicialmente vazio, o lojista pode adicionar depois
           'email': _emailController.text.trim(),
           'ativo': true,
           'tempo_entrega': '30-45 min',

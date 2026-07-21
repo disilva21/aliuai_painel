@@ -1,3 +1,5 @@
+import 'package:aliuai_painel/admin/icon_widget.dart';
+import 'package:aliuai_painel/services/cargas.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -30,10 +32,14 @@ class _GerenciamentoCategoriasPageState extends State<GerenciamentoCategoriasPag
     );
   }
 
+  void _abrirSeletorDeIcone() {}
+
   // =========================================================================
   // 🏢 ABA 1: LISTAGEM E EDIÇÃO DAS CATEGORIAS PRINCIPAIS (GRID DO APP)
   // =========================================================================
   Widget _abaCategoriasPrincipais() {
+    // CargaDeCategorias.fazerCargaDeCategorias(); // 🚀 Chama a função de carga de categorias no Firestore
+
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore.collection('categorias').snapshots(),
       builder: (context, snapshot) {
@@ -168,6 +174,31 @@ class _GerenciamentoCategoriasPageState extends State<GerenciamentoCategoriasPag
             TextField(
               controller: iconeController,
               decoration: const InputDecoration(labelText: 'Código do Ícone (ex: 58711)'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true, // Permite que a modal suba acima do teclado
+                  backgroundColor: Colors.transparent,
+                  builder: (context) {
+                    return SeletorIconesModal(
+                      onIconeSelecionado: (codePoint, nomeIcone) {
+                        // 🎯 O que fazer quando o ícone for selecionado sô:
+                        print('Código para o Firestore: $codePoint');
+                        print('Nome do ícone: $nomeIcone');
+
+                        setState(() {
+                          iconeController.text = codePoint.toString();
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ícone $nomeIcone ($codePoint) selecionado, uai!')));
+                      },
+                    );
+                  },
+                );
+              },
+              child: const Text('Selecionar Ícone'),
             ),
             TextField(
               controller: corController,

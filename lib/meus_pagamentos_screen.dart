@@ -26,9 +26,17 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
   bool _mostrarPix = false;
   String _idPagamentoGerado = '';
 
+  late Stream<DocumentSnapshot> _streamLoja;
+  late Stream<QuerySnapshot> _streamPagamentos;
+
   @override
   void initState() {
     super.initState();
+    // 🎯 A SACADA: As conexões abrem apenas UMA vez aqui quando a tela nasce!
+    _streamLoja = _firestore.collection('estabelecimentos').doc(widget.lojaId).snapshots();
+
+    _streamPagamentos = _firestore.collection('pagamentos').where('loja_id', isEqualTo: widget.lojaId).orderBy('criadoEm', descending: true).snapshots();
+
     _carregarPlanosDoBanco();
   }
 
@@ -108,7 +116,8 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
           : SingleChildScrollView(
               padding: EdgeInsets.all(ehCelular ? 16.0 : 32.0),
               child: StreamBuilder<DocumentSnapshot>(
-                stream: _firestore.collection('estabelecimentos').doc(widget.lojaId).snapshots(),
+                // 🎯 ANTIGO PROBLEMA RESOLVIDO: Agora aponta para a variável fixa!
+                stream: _streamLoja,
                 builder: (context, snapshotLoja) {
                   if (snapshotLoja.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFFE65100)));
@@ -171,7 +180,6 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
 
                       const SizedBox(height: 32),
 
-                      // 🚀 NOVA SEÇÃO: Histórico de Pagamentos Realizados sô!
                       const Text(
                         'Histórico de Faturamento',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E1E26)),
@@ -179,11 +187,8 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
                       const SizedBox(height: 12),
 
                       StreamBuilder<QuerySnapshot>(
-                        stream: _firestore
-                            .collection('pagamentos')
-                            .where('loja_id', isEqualTo: widget.lojaId)
-                            .orderBy('criadoEm', descending: true) // Lembra de criar o índice composto sô!
-                            .snapshots(),
+                        // 🎯 ANTIGO PROBLEMA RESOLVIDO: Aponta para a variável fixa!
+                        stream: _streamPagamentos,
                         builder: (context, snapshotPagamentos) {
                           if (snapshotPagamentos.connectionState == ConnectionState.waiting) {
                             return const Padding(
@@ -232,7 +237,6 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
                                 final String status = fatura['status'] ?? 'pendente';
                                 final String novoPlano = fatura['idNovoPlano'] ?? 'Mensalidade';
 
-                                // Trata a data de criação sô
                                 String dataCriacao = 'Sem data';
                                 if (fatura['criadoEm'] != null) {
                                   try {
@@ -244,7 +248,6 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
                                   } catch (_) {}
                                 }
 
-                                // Define a cor e visual do Badge com base no status da fatura uai
                                 Color corBadge = Colors.grey;
                                 String txtBadge = status.toUpperCase();
                                 if (status == 'pago') {
@@ -289,7 +292,6 @@ class _MeusPagamentosScreenState extends State<MeusPagamentosScreen> {
                                       ),
                                     ],
                                   ),
-                                  // 💡 SACADA DE MESTRE: Se o cara clicar em uma fatura que ainda está pendente, reabre o CheckoutPixScreen!
                                   onTap: status == 'pendente'
                                       ? () {
                                           setState(() {

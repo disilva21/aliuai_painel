@@ -160,11 +160,20 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
       final String slugCategoriaMinusc = catObjeto['slug'];
 
       final docLoja = await _firestore.collection('estabelecimentos').doc(widget.lojaId).get();
-      String cidadeIdDaLoja = '';
-
+      List<String> todasAsCidades = [];
+      String idDaCidadeSede = '';
       if (docLoja.exists) {
         final dadosLoja = docLoja.data();
-        cidadeIdDaLoja = dadosLoja?['cidade_id'] ?? '';
+
+        idDaCidadeSede = dadosLoja?['cidade_id'] ?? '';
+        todasAsCidades = [idDaCidadeSede];
+
+        if (dadosLoja?['cidades_expansao'] != null) {
+          // 🎯 AQUI ESTÁ A CORREÇÃO: Converte o JSArray<dynamic> para List<String> de forma segura!
+          List<String> idsExpansao = List<String>.from(dadosLoja?['cidades_expansao']);
+
+          todasAsCidades.addAll(idsExpansao);
+        }
       }
 
       final produtoData = {
@@ -200,7 +209,7 @@ class _CadastroProdutoModalState extends State<CadastroProdutoModal> {
           'criado_em': FieldValue.serverTimestamp(),
           'estabelecimento_id': widget.lojaId,
           'promocao': false,
-          'cidade_id': cidadeIdDaLoja,
+          'cidade_id': idDaCidadeSede,
         });
       }
 

@@ -290,13 +290,7 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
           // TABELA DE PRODUTOS DA SUBCOLEÇÃO COM FILTRO E PAGINAÇÃO DINÂMICA
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: () {
-                Query queryBase = _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').orderBy('nome');
-                if (_categoriaFiltroId != null) {
-                  queryBase = queryBase.where('categoria_id', isEqualTo: _categoriaFiltroId);
-                }
-                return queryBase.limit(_limiteProdutosExibidos).snapshots();
-              }(),
+              stream: _obterStreamProdutos(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   print(snapshot.error);
@@ -571,5 +565,15 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
         ],
       ),
     );
+  }
+
+  Stream<QuerySnapshot> _obterStreamProdutos() {
+    Query queryBase = _firestore.collection('estabelecimentos').doc(widget.lojaId).collection('produtos').orderBy('nome');
+
+    if (_categoriaFiltroId != null) {
+      queryBase = queryBase.where('categoria_id', isEqualTo: _categoriaFiltroId);
+    }
+
+    return queryBase.limit(_limiteProdutosExibidos).snapshots();
   }
 }
